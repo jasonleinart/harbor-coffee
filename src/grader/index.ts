@@ -81,7 +81,30 @@ export function grade(fx: Fixtures = seed(), sites: Site[] = SITES): Cell[] {
 export function explainCell(siteKey: string, checkId: string, fx: Fixtures = seed()) {
   const resolved = resolveCheckId(checkId);
   const check: Check | undefined = CHECKS.find((c) => c.id === resolved.id);
-  if (!check) return { error: `unknown check: ${checkId}` };
+  // An unknown id returns the CATALOG, not just a complaint. A model that
+  // guessed a plausible-but-wrong name (ecommerce_dash for ecommerce_tax) can
+  // then correct itself in the next round instead of asking the user, or worse,
+  // inventing an answer. Refusing without saying what exists is a dead end that
+  // looks like rigor.
+  if (!check) {
+    // Returning the catalog alone was not enough: a live model was handed all
+    // twelve ids six times and went on inventing names. A list is data; the
+    // model needs an instruction. So name the nearest match and say to use it.
+    const n = norm(checkId);
+    const near = CHECKS.map((c) => c.id).filter((id) => {
+      const m = norm(id);
+      return m.includes(n.slice(0, 6)) || n.includes(m.slice(0, 6));
+    });
+    return {
+      error: `unknown check: ${checkId}`,
+      did_you_mean: near,
+      available: CHECKS.map((c) => c.id),
+      instruction:
+        near.length > 0
+          ? `Call explain_cell again with check="${near[0]}". Do not invent another name.`
+          : 'Call explain_cell again with one of the ids in available. Do not invent another name.',
+    };
+  }
 
   const site = SITES.find((s) => s.key === siteKey);
   if (!site) return { error: `unknown site: ${siteKey}` };

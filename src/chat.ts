@@ -1,5 +1,5 @@
 import { grade, explainCell, seed, CHECKS, SITES } from './grader';
-import { listProcesses, whoCanSee, readTrace } from './grader/acl';
+import { listProcesses, whoCanSee, readTrace, listTraces } from './grader/acl';
 
 export const MAX_ROUNDS = 3;
 
@@ -44,6 +44,10 @@ RULES, in order of importance:
 3. When you report a cell, include its does_not_prove line. A green cell is a claim under a stated rigor, not a guarantee.
 4. NA means evaluated and does not apply. MANUAL means no machine decided it. They are different; never call either one "fine" or collapse them.
 5. Check ids change. If a user names a retired id, explain_cell will resolve it; say which id is current.
+6. NEVER ask which site before calling a tool. grade with no arguments returns all three sites, so a question that names no site is already answerable — call grade, then answer. Asking first turns a groundable question into a refusal.
+7. A question that assumes one check implies another ("is the cron healthy so reviews are fine?") is two cells, not one. Grade both and say plainly where the assumption breaks.
+8. NEVER decline a question you have a tool for, and never ask the user for an id. If you lack an id, call the tool with no arguments to list what exists. Call the tool FIRST; report what it returns.
+9. A 403 is a real answer, not a failure. Report it as "your role cannot read this" and name the role. Never substitute a disclaimer about being a language model — the access boundary is the point, and the user asked about THIS system, not about you.
 
 Tools: grade, explain_cell, list_processes, who_can_see, read_trace.`;
 
@@ -103,11 +107,14 @@ export const TOOL_SCHEMA = [
     type: 'function',
     function: {
       name: 'read_trace',
-      description: 'Read an ops decision trace by id. Denied for non-ops roles.',
+      description:
+        'Read ops decision traces — the record of why a person overrode a default. ' +
+        'Call with NO id to list every trace the current role may read; pass id only ' +
+        'to fetch one. Denied for non-ops roles, and the denial is itself the answer ' +
+        'to "why can I not see this".',
       parameters: {
         type: 'object',
-        properties: { id: { type: 'string' } },
-        required: ['id'],
+        properties: { id: { type: 'string', description: 'optional; omit to list' } },
       },
     },
   },
@@ -135,8 +142,12 @@ export function runTool(name: string, args: Record<string, unknown>, role: strin
       return listProcesses(role);
     case 'who_can_see':
       return whoCanSee(String(args.resource ?? ''));
-    case 'read_trace':
-      return readTrace(role, String(args.id ?? ''));
+    case 'read_trace': {
+      // No id means "what is there?". Authorization still comes first, so an
+      // unauthorized caller learns nothing about which traces exist.
+      const id = typeof args.id === 'string' ? args.id.trim() : '';
+      return id ? readTrace(role, id) : listTraces(role);
+    }
     default:
       return { error: `unknown tool: ${name}` };
   }

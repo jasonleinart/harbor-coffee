@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import golden from '../evals/golden.json';
 import { runTool } from '../src/chat';
 import { explainCell, grade } from '../src/grader';
+import { CHECKS } from '../src/grader/catalog';
 import { GLYPH } from '../src/grader/status';
 import { TRACES } from '../src/grader/fixtures';
 
@@ -136,5 +137,47 @@ describe('9. guest is denied, and the denial leaks nothing', () => {
     const body = JSON.stringify(r);
     expect(body).not.toContain(TRACES[0].rationale);
     expect(body).not.toContain(TRACES[0].summary);
+  });
+});
+
+// A live model asked for "ecommerce_dash" when the id is "ecommerce_tax", and
+// an error with no catalog left it guessing at the user instead of correcting
+// itself. Refusing without saying what exists is a dead end that looks like
+// rigor.
+describe('an unknown check id hands back the catalog', () => {
+  it('names the real ids so the next round can self-correct', () => {
+    const e = explainCell('lakeside', 'ecommerce_dash');
+    expect('error' in e).toBe(true);
+    if (!('error' in e)) return;
+    expect(e.available).toContain('ecommerce_tax');
+    // Every id, not a curated subset: a partial list is how the model learns a
+    // check does not exist when it does.
+    expect(e.available).toEqual(CHECKS.map((c) => c.id));
+  });
+
+  it('a resolvable near-miss still resolves rather than erroring', () => {
+    const e = explainCell('lakeside', 'ecommerce');
+    expect('error' in e).toBe(false);
+  });
+
+  // The catalog alone was ignored: a live model received all twelve ids six
+  // times and kept inventing names. A list is data; the model needs an
+  // instruction, so the error names the nearest match and says to use it.
+  it('names the nearest match for the ids a real model actually invented', () => {
+    for (const guess of ['ecommerce-healthy', 'ecommercehealthy', 'ecommerce_dash']) {
+      const e = explainCell('lakeside', guess);
+      expect('error' in e, guess).toBe(true);
+      if (!('error' in e)) continue;
+      expect(e.did_you_mean, guess).toContain('ecommerce_tax');
+      expect(e.instruction, guess).toContain('ecommerce_tax');
+    }
+  });
+
+  it('falls back to the full catalog when nothing is near', () => {
+    const e = explainCell('lakeside', 'zzz');
+    expect('error' in e).toBe(true);
+    if (!('error' in e)) return;
+    expect(e.did_you_mean).toEqual([]);
+    expect(e.instruction).toContain('available');
   });
 });

@@ -77,6 +77,29 @@ export function listProcesses(
   return { allowed: true, status: 200, role, resource: 'processes', data: processes };
 }
 
+/**
+ * List the traces a role may read. Authorization first, as always.
+ *
+ * Exists because read_trace needed an id nobody could discover: the model knew
+ * a 1-star approval had been made and had no way to name it, so it declined
+ * instead of calling the tool. A gate the caller cannot find its way to is not
+ * secure, it is broken — and the denial is itself the interesting answer here.
+ */
+export function listTraces(
+  role: string,
+  traces: Trace[] = TRACES,
+  principals: Principal[] = PRINCIPALS,
+): Guarded<Pick<Trace, 'id' | 'process' | 'summary'>[]> {
+  if (!canRead(role, 'ops_trace', principals)) return deny(role, 'ops_trace');
+  return {
+    allowed: true,
+    status: 200,
+    role,
+    resource: 'ops_trace',
+    data: traces.map(({ id, process, summary }) => ({ id, process, summary })),
+  };
+}
+
 /** The Ops-only row. Marketing and Guest get 403. PLAN.md §4.6 */
 export function readTrace(
   role: string,

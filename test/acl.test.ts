@@ -4,6 +4,7 @@ import {
   whoCanSee,
   listProcesses,
   readTrace,
+  listTraces,
   ROLES,
   PRINCIPALS,
   TRACES,
@@ -124,5 +125,30 @@ describe('the ACL can fail', () => {
     );
     expect(readTrace('marketing', TRACE_ID, TRACES, leaked).allowed).toBe(true);
     expect(readTrace('marketing', TRACE_ID).status).toBe(403);
+  });
+});
+
+// read_trace originally required an id nobody could discover, so a live model
+// declined instead of calling it. A gate the caller cannot find its way to is
+// not secure, it is broken.
+describe('listTraces: discovery without leakage', () => {
+  it('ops sees the ids', () => {
+    const r = listTraces('ops');
+    expect(r.allowed).toBe(true);
+    if (r.allowed) expect(r.data.map((t) => t.id)).toContain(TRACES[0].id);
+  });
+
+  it('marketing and guest are denied the listing too', () => {
+    for (const role of ['marketing', 'guest']) {
+      const r = listTraces(role);
+      expect(r.allowed, role).toBe(false);
+      if (!r.allowed) expect(r.status).toBe(403);
+    }
+  });
+
+  it('the listing carries no rationale, only what is needed to ask', () => {
+    const r = listTraces('ops');
+    expect(r.allowed).toBe(true);
+    expect(JSON.stringify(r)).not.toContain(TRACES[0].rationale);
   });
 });
