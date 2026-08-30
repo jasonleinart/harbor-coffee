@@ -6,7 +6,7 @@
     "strict": true,
     "noUncheckedIndexedAccess": false,
     "skipLibCheck": true,
-    "types": ["vitest/globals"],
+    "types": ["vitest/globals", "node"],
     "noEmit": true
   },
   "include": ["src", "test"]

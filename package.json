@@ -4,11 +4,16 @@
   "type": "module",
   "scripts": {
     "test": "vitest run",
-    "matrix": "tsx src/matrix.ts"
+    "matrix": "tsx src/matrix.ts",
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
+    "@types/node": "^26.2.0",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2",
-    "vitest": "^2.1.8"
+    "vitest": "^2.1.8",
+    "wrangler": "^4.125.0"
   }
 }

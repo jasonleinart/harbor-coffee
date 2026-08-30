@@ -1,6 +1,7 @@
 import type { Status, Verdict } from './status';
 import { P, F, PART, NA, MAN, DEG } from './status';
 import type { Site, Fixtures } from './fixtures';
+import { KIT_CURRENT_TAG } from './fixtures';
 
 /**
  * A check must say what it does NOT prove.
@@ -104,6 +105,82 @@ export function humanFloorVerdict(
   return P(`${clock.length} clock processes, all with a declared floor`);
 }
 
+/**
+ * A container firing on a non-production host pollutes production data.
+ *
+ * The tag is live and healthy either way — that is what makes this one hard to
+ * see from the inside. Only the hostname allowlist separates a working setup
+ * from one quietly counting staging traffic as real.
+ */
+export function gtmProdHostVerdict(hostnames: string[], prodHost: string): Verdict {
+  if (hostnames.length === 0) return F('container fires on no declared hostname');
+  const extra = hostnames.filter((h) => h !== prodHost);
+  if (extra.length > 0) return F(`container also fires on: ${extra.join(', ')}`);
+  return P(`gated to ${prodHost}`);
+}
+
+/** Every public form behind Turnstile, or name the ones that are not. */
+export function formsTurnstileVerdict(
+  forms: { path: string; turnstile: boolean }[],
+): Verdict {
+  if (forms.length === 0) return NA('no public forms on this site');
+  const bare = forms.filter((f) => !f.turnstile);
+  if (bare.length > 0) {
+    return F(`public form without Turnstile: ${bare.map((f) => f.path).join(', ')}`);
+  }
+  return P(`${forms.length} public form(s), all behind Turnstile`);
+}
+
+/**
+ * Behind is not broken. An old pin is PARTIAL, a missing one is FAIL.
+ *
+ * Collapsing those two would be its own small lie: a site that pins nothing has
+ * no reproducible build, while a site pinning v2.1.0 has one that is merely
+ * old. Different problems, different urgency, different glyph.
+ */
+export function kitPinVerdict(pinned: string | undefined, current: string): Verdict {
+  if (!pinned) return F('no kit tag pinned');
+  if (pinned !== current) return PART(`pinned ${pinned}, current is ${current}`);
+  return P(`pinned ${pinned}`);
+}
+
+/** Meta row: every named process has somewhere to actually run. */
+export function processCatalogVerdict(
+  processes: { id: string; attendance: string; runner?: string }[],
+): Verdict {
+  if (processes.length === 0) return F('no processes declared');
+  const orphans = processes.filter((p) => !p.runner || p.runner.trim() === '');
+  if (orphans.length > 0) {
+    return F(`process with no runner path: ${orphans.map((p) => p.id).join(', ')}`);
+  }
+  return P(`${processes.length} processes, all with a runner`);
+}
+
+/**
+ * Marketing must not reach ops traces.
+ *
+ * Asserted as a property of the principal table rather than by attempting a
+ * read, so the row grades the same whether or not anything has been requested
+ * yet. Phase 2's who_can_see enforces it at the door; this proves the door was
+ * specified correctly in the first place.
+ */
+export function roleAclVerdict(
+  principals: { role: string; can_read: string[] }[],
+  guarded = 'ops_trace',
+): Verdict {
+  const ops = principals.find((p) => p.role === 'ops');
+  if (!ops || !ops.can_read.includes(guarded)) {
+    return F(`ops cannot read ${guarded}; the ACL is inverted or empty`);
+  }
+  const leaked = principals.filter(
+    (p) => p.role !== 'ops' && p.can_read.includes(guarded),
+  );
+  if (leaked.length > 0) {
+    return F(`${leaked.map((p) => p.role).join(', ')} can read ${guarded}`);
+  }
+  return P(`${guarded} restricted to ops`);
+}
+
 export const CHECKS: Check[] = [
   {
     id: 'ai_txt_live',
@@ -154,6 +231,46 @@ export const CHECKS: Check[] = [
     proves: 'the floor is written down for unattended processes',
     does_not_prove: 'that a human is available, or that the floor is respected',
     run: (_s, fx) => humanFloorVerdict(fx.processes),
+  },
+  {
+    id: 'gtm_prod_host',
+    claim: 'GTM container is gated to production hostnames',
+    rigor: 'content',
+    proves: 'the container declares only the production host',
+    does_not_prove: 'that tags fire correctly, or that events reach the property',
+    run: (s, fx) => gtmProdHostVerdict(fx.gtm[s.key].hostnames, 'harborcoffee.example'),
+  },
+  {
+    id: 'forms_turnstile',
+    claim: 'Every public form is behind Turnstile',
+    rigor: 'content',
+    proves: 'a Turnstile widget is wired to each public form',
+    does_not_prove: 'that the widget validates server-side, or that spam stopped',
+    run: (s, fx) => formsTurnstileVerdict(fx.forms[s.key]),
+  },
+  {
+    id: 'kit_pin',
+    claim: 'Site pins the current kit tag',
+    rigor: 'git',
+    proves: 'the declared dependency matches the current release',
+    does_not_prove: 'that the pinned build was deployed, or that it works',
+    run: (s, fx) => kitPinVerdict(fx.kit_pin[s.key], KIT_CURRENT_TAG),
+  },
+  {
+    id: 'process_catalog',
+    claim: 'Every named process has a runner path',
+    rigor: 'content',
+    proves: 'each declared process points somewhere it could run',
+    does_not_prove: 'that the runner exists, is deployed, or has ever executed',
+    run: (_s, fx) => processCatalogVerdict(fx.processes),
+  },
+  {
+    id: 'role_acl',
+    claim: 'Only ops can read ops traces',
+    rigor: 'config',
+    proves: 'the principal table restricts the guarded resource',
+    does_not_prove: 'that the running service enforces it — that is who_can_see',
+    run: (_s, fx) => roleAclVerdict(fx.principals),
   },
   {
     id: 'ecommerce_tax',

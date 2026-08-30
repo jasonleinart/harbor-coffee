@@ -6,9 +6,15 @@ import {
   ledgerFreshVerdict,
   cronWiredVerdict,
   humanFloorVerdict,
+  gtmProdHostVerdict,
+  formsTurnstileVerdict,
+  kitPinVerdict,
+  processCatalogVerdict,
+  roleAclVerdict,
 } from '../src/grader/catalog';
-import { grade, explainCell, resolveCheckId } from '../src/grader';
-import { seed, PROCESSES } from '../src/grader/fixtures';
+import { grade, explainCell, resolveCheckId, SITES } from '../src/grader';
+import { renderMatrix } from '../src/html';
+import { seed, PROCESSES, PRINCIPALS } from '../src/grader/fixtures';
 import { STATUSES, GLYPH, isClassifiedDegraded } from '../src/grader/status';
 
 const cell = (cells: ReturnType<typeof grade>, site: string, check: string) =>
@@ -140,6 +146,63 @@ describe('non-live rows can still fail', () => {
     expect(cronWiredVerdict(['0 * * * *']).status).toBe('PASS');
     expect(cronWiredVerdict([]).status).toBe('FAIL');
   });
+
+  it('gtm_prod_host: prod-only PASSes, extra host FAILs and is named', () => {
+    expect(gtmProdHostVerdict(['prod.example'], 'prod.example').status).toBe('PASS');
+    const v = gtmProdHostVerdict(['prod.example', 'preview.example'], 'prod.example');
+    expect(v.status).toBe('FAIL');
+    expect(v.note).toContain('preview.example');
+    expect(gtmProdHostVerdict([], 'prod.example').status).toBe('FAIL');
+  });
+
+  it('forms_turnstile: all-protected PASSes, a bare form FAILs and is named', () => {
+    expect(formsTurnstileVerdict([{ path: '/a', turnstile: true }]).status).toBe('PASS');
+    const v = formsTurnstileVerdict([
+      { path: '/a', turnstile: true },
+      { path: '/catering', turnstile: false },
+    ]);
+    expect(v.status).toBe('FAIL');
+    expect(v.note).toContain('/catering');
+  });
+
+  it('forms_turnstile: no forms is NA, not PASS — nothing was protected', () => {
+    expect(formsTurnstileVerdict([]).status).toBe('NA');
+  });
+
+  it('kit_pin: current PASSes, old is PARTIAL, missing FAILs', () => {
+    expect(kitPinVerdict('v2.4.0', 'v2.4.0').status).toBe('PASS');
+    expect(kitPinVerdict('v2.1.0', 'v2.4.0').status).toBe('PARTIAL');
+    expect(kitPinVerdict(undefined, 'v2.4.0').status).toBe('FAIL');
+  });
+
+  it('process_catalog: all-runners PASSes, an orphan FAILs and is named', () => {
+    expect(processCatalogVerdict(PROCESSES).status).toBe('PASS');
+    const orphaned = PROCESSES.map((p) =>
+      p.id === 'class-email' ? { ...p, runner: undefined } : p,
+    );
+    const v = processCatalogVerdict(orphaned);
+    expect(v.status).toBe('FAIL');
+    expect(v.note).toContain('class-email');
+  });
+
+  it('role_acl: restricted PASSes; a leak to marketing FAILs and is named', () => {
+    expect(roleAclVerdict(PRINCIPALS).status).toBe('PASS');
+    const leaked = PRINCIPALS.map((p) =>
+      p.role === 'marketing' ? { ...p, can_read: [...p.can_read, 'ops_trace'] } : p,
+    );
+    const v = roleAclVerdict(leaked);
+    expect(v.status).toBe('FAIL');
+    expect(v.note).toContain('marketing');
+  });
+
+  // An ACL that denies everyone is not secure, it is broken. Without this the
+  // row would go green on a principal table that locked ops out of its own data.
+  it('role_acl: FAILs when ops itself cannot read the guarded resource', () => {
+    const inverted = PRINCIPALS.map((p) =>
+      p.role === 'ops' ? { ...p, can_read: ['matrix'] } : p,
+    );
+    expect(roleAclVerdict(inverted).status).toBe('FAIL');
+  });
 });
 
 describe('planted defects (PLAN.md §4)', () => {
@@ -156,7 +219,7 @@ describe('planted defects (PLAN.md §4)', () => {
       id: 'review_ledger_fresh',
       supersededFrom: 'reviews_collected',
     });
-    const e = explainCell('lakeside', 'reviews_collected') as Record<string, unknown>;
+    const e = explainCell('lakeside', 'reviews_collected') as unknown as Record<string, unknown>;
     expect(e.check).toBe('review_ledger_fresh');
     expect(e.supersededFrom).toBe('reviews_collected');
   });
@@ -183,8 +246,34 @@ describe('planted defects (PLAN.md §4)', () => {
 
 describe('explain_cell', () => {
   it('always carries does_not_prove', () => {
-    const e = explainCell('lakeside', 'ai_txt_live') as Record<string, string>;
+    const e = explainCell('lakeside', 'ai_txt_live') as unknown as Record<string, string>;
     expect(e.does_not_prove.length).toBeGreaterThan(0);
     expect(e.status).toBe('FAIL');
+  });
+});
+
+// The page and the model must read the same grade() call. If the HTML ever
+// disagrees with the JSON, the human and the LLM are looking at different
+// worlds — and the demo's whole claim is that they are not.
+describe('rendered matrix matches the graded cells', () => {
+  it('every cell in the HTML carries the status the grader returned', () => {
+    const html = renderMatrix();
+    const rendered = [...html.matchAll(/<td class="s-([A-Z]+)"/g)].map((m) => m[1]);
+    const graded = grade().map((c) => c.status);
+    const count = (xs: string[]) =>
+      xs.reduce<Record<string, number>>((a, s) => ({ ...a, [s]: (a[s] ?? 0) + 1 }), {});
+    expect(rendered.length).toBe(graded.length);
+    expect(count(rendered)).toEqual(count(graded));
+  });
+
+  it('renders every check row and site column', () => {
+    const html = renderMatrix();
+    for (const c of CHECKS) expect(html).toContain(c.id);
+    for (const s of SITES) expect(html).toContain(s.key);
+  });
+
+  it('live-off renders DEGRADED, never PASS, on live rows', () => {
+    const html = renderMatrix(true);
+    expect(html).toContain('s-DEGRADED');
   });
 });
