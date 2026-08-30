@@ -1,0 +1,14 @@
+{
+  "name": "harbor-coffee",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "matrix": "tsx src/matrix.ts"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}
