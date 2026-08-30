@@ -277,3 +277,46 @@ describe('rendered matrix matches the graded cells', () => {
     expect(html).toContain('s-DEGRADED');
   });
 });
+
+// A live model asked for "ai.txt" when the id is "ai_txt_live". Exact-match
+// lookup made that an unknown check, and the loop refused a question it could
+// have answered. Strictness about ids does not buy truthfulness; it just moves
+// the failure. The VERDICT stays strict, and every resolution is reported.
+describe('check id resolution', () => {
+  it('resolves a plausible short name to the real id', () => {
+    expect(resolveCheckId('ai.txt').id).toBe('ai_txt_live');
+    expect(resolveCheckId('ai_txt').id).toBe('ai_txt_live');
+    expect(resolveCheckId('AI-TXT').id).toBe('ai_txt_live');
+  });
+
+  it('reports what it resolved from, so nothing is silently renamed', () => {
+    expect(resolveCheckId('ai.txt').resolvedFrom).toBe('ai.txt');
+    expect(resolveCheckId('ai_txt_live').resolvedFrom).toBeUndefined();
+  });
+
+  it('keeps the superseded path distinct from a fuzzy match', () => {
+    const r = resolveCheckId('reviews_collected');
+    expect(r.id).toBe('review_ledger_fresh');
+    expect(r.supersededFrom).toBe('reviews_collected');
+    expect(r.resolvedFrom).toBeUndefined();
+  });
+
+  it('an exact id is never rewritten', () => {
+    for (const c of CHECKS) {
+      const r = resolveCheckId(c.id);
+      expect(r.id).toBe(c.id);
+      expect(r.resolvedFrom).toBeUndefined();
+    }
+  });
+
+  it('an unknown name stays unknown rather than picking something', () => {
+    expect(explainCell('lakeside', 'wholly-unrelated')).toHaveProperty('error');
+  });
+
+  it('explain_cell surfaces the resolution to the caller', () => {
+    const e = explainCell('lakeside', 'ai.txt') as unknown as Record<string, string>;
+    expect(e.check).toBe('ai_txt_live');
+    expect(e.resolvedFrom).toBe('ai.txt');
+    expect(e.status).toBe('FAIL');
+  });
+});

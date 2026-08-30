@@ -15,9 +15,50 @@ export const SUPERSEDED: Record<string, string> = {
   reviews_collected: 'review_ledger_fresh',
 };
 
-export function resolveCheckId(id: string): { id: string; supersededFrom?: string } {
+/**
+ * Resolve what the caller MEANT, and say so when it differs from what they typed.
+ *
+ * Three tiers, narrowest first: exact id, retired id, then a normalised match
+ * that ignores punctuation and the rigor suffix. The third tier exists because
+ * a live model asked for `ai.txt` when the id is `ai_txt_live` — a reasonable
+ * name for the thing, and an exact-match lookup turned it into "unknown check",
+ * which the loop then correctly refused to answer.
+ *
+ * That refusal was right and the outcome was still wrong: the user asked a
+ * groundable question and got nothing. Being strict about ids does not make the
+ * grader more truthful, it just moves the failure somewhere less useful. What
+ * must stay strict is the VERDICT; the id is a lookup key, and every resolution
+ * is reported back so nothing is silently renamed.
+ */
+const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+export function resolveCheckId(id: string): {
+  id: string;
+  supersededFrom?: string;
+  resolvedFrom?: string;
+} {
+  if (CHECKS.some((c) => c.id === id)) return { id };
+
   const current = SUPERSEDED[id];
-  return current ? { id: current, supersededFrom: id } : { id };
+  if (current) return { id: current, supersededFrom: id };
+
+  const n = norm(id);
+  if (!n) return { id };
+
+  // Exact after normalising, then prefix (ai.txt -> ai_txt_live). Longest id
+  // last so the shortest unambiguous match wins.
+  const byNorm = CHECKS.find((c) => norm(c.id) === n);
+  if (byNorm) return { id: byNorm.id, resolvedFrom: id };
+
+  const prefixed = CHECKS.filter((c) => norm(c.id).startsWith(n));
+  if (prefixed.length === 1) return { id: prefixed[0].id, resolvedFrom: id };
+
+  const contained = CHECKS.filter((c) => norm(c.id).includes(n));
+  if (contained.length === 1) return { id: contained[0].id, resolvedFrom: id };
+
+  // Ambiguous or unknown: hand back the original so the caller gets a real
+  // "unknown check" rather than an arbitrary pick.
+  return { id };
 }
 
 export function grade(fx: Fixtures = seed(), sites: Site[] = SITES): Cell[] {
@@ -50,6 +91,7 @@ export function explainCell(siteKey: string, checkId: string, fx: Fixtures = see
     site: site.key,
     check: check.id,
     supersededFrom: resolved.supersededFrom,
+    resolvedFrom: resolved.resolvedFrom,
     claim: check.claim,
     rigor: check.rigor,
     status: v.status,

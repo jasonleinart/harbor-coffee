@@ -104,6 +104,31 @@ describe('injected faults', () => {
     expect(r.refused).toBe('ungrounded');
     expect(r.rounds).toBe(MAX_ROUNDS);
     expect(calls).toBe(MAX_ROUNDS);
+    expect(STATUS_WORD.test(r.answer)).toBe(false);
+  });
+
+  // The real model batches every site into ONE round. The cap was never the
+  // constraint; a vague tool description was. Asserted so a schema edit that
+  // reintroduces per-site calls shows up here.
+  it('several tool calls in one round all resolve within that round', async () => {
+    const model: ModelFn = (() => {
+      let n = 0;
+      return async () =>
+        n++ === 0
+          ? {
+              content: null,
+              tool_calls: [
+                call('grade', { site: 'lakeside' }),
+                call('grade', { site: 'campus' }),
+                call('grade', { site: 'station' }),
+              ].map((c, i) => ({ ...c, id: `c${i}` })),
+            }
+          : { content: 'All three graded.' };
+    })();
+    const r = await runChat('are we collecting reviews?', model);
+    expect(r.ok).toBe(true);
+    expect(r.rounds).toBe(2);
+    expect(r.toolCalls).toHaveLength(3);
   });
 
   it('malformed tool arguments do not crash the loop', async () => {

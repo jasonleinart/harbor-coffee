@@ -52,10 +52,18 @@ export const TOOL_SCHEMA = [
     type: 'function',
     function: {
       name: 'grade',
-      description: 'Run all checks, or one site\'s checks. Returns the matrix.',
+      description:
+        'Grade the fleet. Call with NO arguments to get all three sites at once — ' +
+        'that is almost always what you want. Pass site only to narrow to one.',
       parameters: {
         type: 'object',
-        properties: { site: { type: 'string', description: 'optional site key' } },
+        properties: {
+          site: {
+            type: 'string',
+            enum: ['lakeside', 'campus', 'station'],
+            description: 'optional; omit to grade every site in one call',
+          },
+        },
       },
     },
   },
@@ -244,6 +252,10 @@ export async function runChat(
   }
 
   // Out of rounds with the model still asking for tools.
+  // No rescue round here: when the tool DESCRIPTIONS are right the model fetches
+  // what it needs in one round, so hitting this cap means something is wrong with
+  // the question or the schema. Spending a fourth call to summarise would hide
+  // that signal behind a workaround.
   return {
     ok: false,
     answer: REFUSALS.ungrounded,
