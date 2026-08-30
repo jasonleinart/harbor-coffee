@@ -62,6 +62,37 @@ export const PRINCIPALS: Principal[] = [
   { role: 'guest', can_read: ['matrix', 'processes'] },
 ];
 
+/**
+ * A decision trace: why a person overrode the default on one hard case.
+ *
+ * PLAN.md §4.6. This is the Ops-only row, and it is the reason the ACL exists
+ * at all. The 1-star reply is exactly the case the human floor reserves for a
+ * person, so the record of that judgment is the most sensitive thing here —
+ * it names an unhappy customer and the reasoning about them.
+ */
+export interface Trace {
+  id: string;
+  process: string;
+  resource: string;
+  summary: string;
+  decided_by: string;
+  rationale: string;
+}
+
+export const TRACES: Trace[] = [
+  {
+    id: 'trace-1star-0412',
+    process: 'review-reply',
+    resource: 'ops_trace',
+    summary: '1-star review, approved a public reply offering a refund',
+    decided_by: 'ops',
+    rationale:
+      'Draft cleared the floor: the complaint was specific and verifiable, the ' +
+      'refund was inside the standing limit, and no health claim was made. ' +
+      'Escalated to a person because 1-star replies never auto-send.',
+  },
+];
+
 export const KIT_CURRENT_TAG = 'v2.4.0';
 
 export interface Fixtures {
