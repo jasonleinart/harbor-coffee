@@ -1,0 +1,59 @@
+{
+  "note": "Real google/gemini-2.5-flash round-1 replies, recorded so CI can assert the LLM path without a live key. Re-record with: npx tsx record.mjs",
+  "model": "google/gemini-2.5-flash",
+  "recorded": "2026-08-30",
+  "cases": [
+    {
+      "question": "Is lakeside ai.txt OK?",
+      "round1": {
+        "content": null,
+        "tool_calls": [
+          {
+            "type": "function",
+            "index": 0,
+            "id": "tool_explain_cell_LRRXzQIGFToXsleOLy72",
+            "function": {
+              "name": "explain_cell",
+              "arguments": "{\"site\":\"lakeside\",\"check\":\"ai.txt\"}"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "question": "Are we collecting reviews?",
+      "round1": {
+        "content": null,
+        "tool_calls": [
+          {
+            "type": "function",
+            "index": 0,
+            "id": "tool_grade_MbdxcHu0FtykX4qlgyrS",
+            "function": {
+              "name": "grade",
+              "arguments": "{\"site\":\"lakeside\"}"
+            }
+          },
+          {
+            "type": "function",
+            "index": 1,
+            "id": "tool_grade_nnteGEXCvAhgUYrJr7XP",
+            "function": {
+              "name": "grade",
+              "arguments": "{\"site\":\"campus\"}"
+            }
+          },
+          {
+            "type": "function",
+            "index": 2,
+            "id": "tool_grade_wYtk5mHKhgG7OdXa5OdG",
+            "function": {
+              "name": "grade",
+              "arguments": "{\"site\":\"station\"}"
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

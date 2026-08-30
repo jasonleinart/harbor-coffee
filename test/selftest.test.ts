@@ -20,6 +20,15 @@ import { STATUSES, GLYPH, isClassifiedDegraded } from '../src/grader/status';
 const cell = (cells: ReturnType<typeof grade>, site: string, check: string) =>
   cells.find((c) => c.site === site && c.check === check)!;
 
+// Assert the non-error branch rather than casting past it: a cast would let a
+// test go green against {error}, which is the silent pass this repo exists to
+// prevent.
+function cellOf(site: string, check: string) {
+  const e = explainCell(site, check);
+  if ('error' in e) throw new Error(`explainCell(${site}, ${check}): ${e.error}`);
+  return e;
+}
+
 describe('catalog contract', () => {
   it('every check declares a non-empty does_not_prove', () => {
     for (const c of CHECKS) {
@@ -219,7 +228,7 @@ describe('planted defects (PLAN.md §4)', () => {
       id: 'review_ledger_fresh',
       supersededFrom: 'reviews_collected',
     });
-    const e = explainCell('lakeside', 'reviews_collected') as unknown as Record<string, unknown>;
+    const e = cellOf('lakeside', 'reviews_collected');
     expect(e.check).toBe('review_ledger_fresh');
     expect(e.supersededFrom).toBe('reviews_collected');
   });
@@ -246,7 +255,7 @@ describe('planted defects (PLAN.md §4)', () => {
 
 describe('explain_cell', () => {
   it('always carries does_not_prove', () => {
-    const e = explainCell('lakeside', 'ai_txt_live') as unknown as Record<string, string>;
+    const e = cellOf('lakeside', 'ai_txt_live');
     expect(e.does_not_prove.length).toBeGreaterThan(0);
     expect(e.status).toBe('FAIL');
   });
@@ -314,7 +323,7 @@ describe('check id resolution', () => {
   });
 
   it('explain_cell surfaces the resolution to the caller', () => {
-    const e = explainCell('lakeside', 'ai.txt') as unknown as Record<string, string>;
+    const e = cellOf('lakeside', 'ai.txt');
     expect(e.check).toBe('ai_txt_live');
     expect(e.resolvedFrom).toBe('ai.txt');
     expect(e.status).toBe('FAIL');
