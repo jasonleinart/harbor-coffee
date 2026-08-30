@@ -1,37 +1,37 @@
 /**
  * Print the matrix. No model, no chat, no network.
  *
- * Phase 1's deliverable in embryo: the planted defects must be legible here,
- * before any LLM is involved. If the matrix cannot show them, chat on top of it
- * would only be a more confident way to be wrong.
- *
  *   npm run matrix
  *   npm run matrix -- --live-off
  */
 import { CHECKS, SITES, grade, seed } from './grader';
+import { LABEL } from './grader/status';
 
 const liveOff = process.argv.includes('--live-off');
 const cells = grade(seed({ liveOff }));
 
-const w = Math.max(...CHECKS.map((c) => c.id.length)) + 2;
+const w = Math.max(...CHECKS.map((c) => c.claim.length)) + 2;
 const pad = (s: string, n: number) => s + ' '.repeat(Math.max(0, n - s.length));
 
-console.log(`\nHarbor Coffee — keep-true matrix${liveOff ? '  (live fixtures OFF)' : ''}\n`);
-console.log(pad('check', w) + SITES.map((s) => pad(s.key, 12)).join(''));
-console.log('-'.repeat(w + SITES.length * 12));
+console.log(`\nHarbor Coffee — three shops${liveOff ? '  (could not reach live pages)' : ''}\n`);
+console.log(pad('', w) + SITES.map((s) => pad(s.name.replace('Harbor ', ''), 16)).join(''));
+console.log('-'.repeat(w + SITES.length * 16));
 
 for (const check of CHECKS) {
   const row = SITES.map((s) => {
     const c = cells.find((x) => x.site === s.key && x.check === check.id)!;
-    return pad(`${c.glyph} ${c.status}`, 12);
+    return pad(LABEL[c.status], 16);
   }).join('');
-  console.log(pad(check.id, w) + row);
+  console.log(pad(check.claim, w) + row);
 }
 
 console.log('\nNotes:');
 for (const c of cells) {
-  if (c.status !== 'PASS' && c.note) console.log(`  ${c.site}/${c.check}: ${c.note}`);
+  if (c.status !== 'PASS' && c.note) {
+    const claim = CHECKS.find((x) => x.id === c.check)?.claim ?? c.check;
+    console.log(`  ${c.site} — ${claim}: ${c.note}`);
+  }
 }
 
-console.log('\nLegend: ✅ PASS  ❌ FAIL  ⚠️ PARTIAL  — NA  ❓ MANUAL  🚨 DEGRADED');
-console.log('NA means evaluated and not applicable. ❓ MANUAL means no machine decided it.\n');
+console.log('\nOK · Broken · Partial · Does not apply · Needs a person · Could not check');
+console.log('Does not apply: we looked, this shop does not do that. Needs a person: a script cannot decide.\n');

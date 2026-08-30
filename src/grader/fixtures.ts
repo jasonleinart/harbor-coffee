@@ -34,13 +34,13 @@ export const PROCESSES: Process[] = [
     runner: 'workers/review-reply',
   },
   {
-    id: 'conformance',
+    id: 'shop-alerts',
     attendance: 'clock',
-    human_floor: 'DEGRADED rows are triaged by a person',
-    runner: 'workers/conformance',
+    human_floor: 'someone reads the shop alerts',
+    runner: 'workers/shop-alerts',
   },
-  { id: 'class-email', attendance: 'operator-started', runner: 'scripts/class-email' },
-  { id: 'weekly-pulse', attendance: 'operator-started', runner: 'scripts/weekly-pulse' },
+  { id: 'catering-email', attendance: 'operator-started', runner: 'scripts/catering-email' },
+  { id: 'weekly-summary', attendance: 'operator-started', runner: 'scripts/weekly-summary' },
 ];
 
 /** Who can read what. Used by role_acl and, in Phase 2, who_can_see. */
@@ -50,25 +50,20 @@ export interface Principal {
 }
 
 /**
- * Marketing and Guest must not reach ops traces.
+ * Marketing and Guest must not reach customer PII.
  *
- * The 1-star approval trace is the thing Marketing is not cleared for, and
- * PLAN.md §8 case 6 turns on it: the same question returns a trace for Ops and
- * a denial for Marketing.
+ * The public 1-star reply is marketing's job. The refund payee email is not.
+ * PLAN.md §8 case 6: same tool, two roles, two answers — because the row is
+ * an email, not a review.
  */
 export const PRINCIPALS: Principal[] = [
-  { role: 'ops', can_read: ['matrix', 'processes', 'ops_trace'] },
+  { role: 'ops', can_read: ['matrix', 'processes', 'customer_pii'] },
   { role: 'marketing', can_read: ['matrix', 'processes'] },
   { role: 'guest', can_read: ['matrix', 'processes'] },
 ];
 
 /**
- * A decision trace: why a person overrode the default on one hard case.
- *
- * PLAN.md §4.6. This is the Ops-only row, and it is the reason the ACL exists
- * at all. The 1-star reply is exactly the case the human floor reserves for a
- * person, so the record of that judgment is the most sensitive thing here —
- * it names an unhappy customer and the reasoning about them.
+ * Ops-only: who we paid. Not why we replied in public.
  */
 export interface Trace {
   id: string;
@@ -76,102 +71,67 @@ export interface Trace {
   resource: string;
   summary: string;
   decided_by: string;
+  /** The secret. A 403 body must never contain this. */
+  customer_email: string;
   rationale: string;
 }
 
 export const TRACES: Trace[] = [
   {
-    id: 'trace-1star-0412',
+    id: 'refund-lakeside-0412',
     process: 'review-reply',
-    resource: 'ops_trace',
-    summary: '1-star review, approved a public reply offering a refund',
+    resource: 'customer_pii',
+    summary: 'refund payee for a 1-star (PII held)',
     decided_by: 'ops',
+    customer_email: 'm.chen@example.net',
     rationale:
-      'Draft cleared the floor: the complaint was specific and verifiable, the ' +
-      'refund was inside the standing limit, and no health claim was made. ' +
-      'Escalated to a person because 1-star replies never auto-send.',
+      'Refund $18.00 to m.chen@example.net, order 4412. Do not put the email in a public reply.',
   },
 ];
-
-export const KIT_CURRENT_TAG = 'v2.4.0';
 
 export interface Fixtures {
   /** Simulates --no-live. A live-rigor check must never PASS when this is set. */
   liveOff: boolean;
-  ai_txt: Record<string, { wired: boolean; code: number; body: string }>;
+  order_online: Record<string, { wired: boolean; code: number; body: string }>;
   privacy: Record<string, number>;
   ledger: Record<string, { lastRowAgeH: number; lastPollAgeH: number; boundH: number }>;
   cron: Record<string, string[]>;
   processes: Process[];
-  /** GTM container: which hostnames it fires on, per site. */
-  gtm: Record<string, { hostnames: string[] }>;
-  /** Public forms and whether each is behind Turnstile. */
-  forms: Record<string, { path: string; turnstile: boolean }[]>;
-  /** The kit tag each site pins. */
-  kit_pin: Record<string, string>;
+  forms: Record<string, { path: string; spam_check: boolean }[]>;
   principals: Principal[];
 }
 
-const BODY = '# Harbor Coffee\n\n> A synthetic fleet used to demonstrate keep-true grading.';
+const BODY = 'Order from Harbor Coffee — pickup at the counter.';
 
 export function seed(overrides: Partial<Fixtures> = {}): Fixtures {
   return {
     liveOff: false,
 
-    // PLANT 1 — import is not deployment.
-    // lakeside imports the helper and still 404s: the repo says yes, the URL
-    // says no, and only one of those is the outcome.
-    // station serves a hand-rolled page: right outcome, off-standard route.
-    ai_txt: {
+    // The order button is in the lakeside build. The page is gone.
+    order_online: {
       lakeside: { wired: true, code: 404, body: '' },
       campus: { wired: true, code: 200, body: BODY },
       station: { wired: false, code: 200, body: BODY },
     },
 
-    // Control row: green everywhere, so the matrix is not uniformly red.
     privacy: { lakeside: 200, campus: 200, station: 200 },
 
-    // PLANT 4 — rows look fresh, the poll that writes them is stale.
-    // lakeside's newest row is 2h old and would read as healthy on its own.
     ledger: {
       lakeside: { lastRowAgeH: 2, lastPollAgeH: 76, boundH: 24 },
       campus: { lastRowAgeH: 3, lastPollAgeH: 3, boundH: 24 },
       station: { lastRowAgeH: 5, lastPollAgeH: 5, boundH: 24 },
     },
 
-    // Stays green on lakeside while the ledger row above fails. That pair is
-    // the point: the schedule is declared, and declaring it proves nothing
-    // about whether data arrived.
     cron: {
       lakeside: ['0 * * * *'],
       campus: ['0 * * * *'],
       station: ['0 * * * *'],
     },
 
-    // PLANT — station's container also fires on a preview host.
-    // A container that fires off production sends real events from a staging
-    // URL, and the tag itself looks perfectly healthy while it happens.
-    gtm: {
-      lakeside: { hostnames: ['harborcoffee.example'] },
-      campus: { hostnames: ['harborcoffee.example'] },
-      station: { hostnames: ['harborcoffee.example', 'preview.harborcoffee.example'] },
-    },
-
-    // PLANT — campus ships a public form with no Turnstile.
     forms: {
-      lakeside: [{ path: '/contact', turnstile: true }],
-      campus: [
-        { path: '/contact', turnstile: true },
-        { path: '/catering', turnstile: false },
-      ],
-      station: [{ path: '/contact', turnstile: true }],
-    },
-
-    // PLANT — station pins an old kit tag. Not broken, just behind: PARTIAL.
-    kit_pin: {
-      lakeside: KIT_CURRENT_TAG,
-      campus: KIT_CURRENT_TAG,
-      station: 'v2.1.0',
+      lakeside: [{ path: '/catering', spam_check: true }],
+      campus: [{ path: '/catering', spam_check: false }],
+      station: [{ path: '/catering', spam_check: true }],
     },
 
     processes: PROCESSES,

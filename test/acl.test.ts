@@ -12,7 +12,7 @@ import {
 
 const TRACE_ID = TRACES[0].id;
 
-describe('the door: Marketing cannot read an ops trace', () => {
+describe('the door: Marketing cannot read customer PII', () => {
   it('ops gets the trace', () => {
     const r = readTrace('ops', TRACE_ID);
     expect(r.allowed).toBe(true);
@@ -37,6 +37,7 @@ describe('the door: Marketing cannot read an ops trace', () => {
     const body = JSON.stringify(r);
     expect(body).not.toContain(TRACES[0].rationale);
     expect(body).not.toContain(TRACES[0].summary);
+    expect(body).not.toContain(TRACES[0].customer_email);
     expect(body).not.toContain('refund');
   });
 
@@ -85,19 +86,19 @@ describe('list_processes', () => {
     expect(rr.human_floor).toContain('1-star');
   });
 
-  // The floor is public; the decision behind it is not. Marketing must be able
-  // to see that a person handles 1-star replies without seeing which customer
-  // or why.
-  it('names the floor without exposing the trace rationale', () => {
+  // The floor is public; the payee email is not. Marketing must see that a
+  // person handles 1-star replies. They must not see m.chen@example.net.
+  it('names the floor without exposing the payee', () => {
     const r = listProcesses('marketing');
     expect(r.allowed).toBe(true);
     expect(JSON.stringify(r)).not.toContain(TRACES[0].rationale);
+    expect(JSON.stringify(r)).not.toContain(TRACES[0].customer_email);
   });
 });
 
 describe('who_can_see', () => {
-  it('reports ops_trace as ops-only', () => {
-    const w = whoCanSee('ops_trace');
+  it('reports customer_pii as ops-only', () => {
+    const w = whoCanSee('customer_pii');
     expect(w.roles).toEqual(['ops']);
     expect(w.denied).toContain('marketing');
     expect(w.denied).toContain('guest');
@@ -108,7 +109,7 @@ describe('who_can_see', () => {
   });
 
   it('agrees with canRead for every role and resource', () => {
-    const resources = ['matrix', 'processes', 'ops_trace', 'payroll'];
+    const resources = ['matrix', 'processes', 'customer_pii', 'payroll'];
     for (const res of resources) {
       const w = whoCanSee(res);
       for (const role of ROLES) {
@@ -121,7 +122,7 @@ describe('who_can_see', () => {
 describe('the ACL can fail', () => {
   it('a leaked principal table lets marketing through — the door is real', () => {
     const leaked = PRINCIPALS.map((p) =>
-      p.role === 'marketing' ? { ...p, can_read: [...p.can_read, 'ops_trace'] } : p,
+      p.role === 'marketing' ? { ...p, can_read: [...p.can_read, 'customer_pii'] } : p,
     );
     expect(readTrace('marketing', TRACE_ID, TRACES, leaked).allowed).toBe(true);
     expect(readTrace('marketing', TRACE_ID).status).toBe(403);

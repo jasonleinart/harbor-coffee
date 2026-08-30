@@ -1,61 +1,61 @@
 {
-  "note": "The nine chat cases from PLAN.md §8. Each names the tool a correct answer must call and the facts that answer must carry. Asserted against the grader directly, with no model: CI must never depend on an LLM to catch a lying grader.",
+  "note": "Seven shop questions. Asserted against the grader, no model.",
   "cases": [
     {
       "id": 1,
-      "question": "Is lakeside ai.txt OK?",
+      "question": "Is lakeside's order-online page up?",
       "role": "guest",
       "tool": "explain_cell",
-      "args": { "site": "lakeside", "check": "ai_txt_live" },
+      "args": { "site": "lakeside", "check": "order_online" },
       "expect": {
         "status": "FAIL",
-        "note_contains": ["404", "imported"],
+        "note_contains": ["404", "button"],
         "does_not_prove_present": true
       },
-      "why": "Import is intent; the live GET is the outcome. The failure must name the 404, not a body-length problem."
+      "why": "The button is in the site. The page is gone."
     },
     {
       "id": 2,
-      "question": "Why is campus ai.txt green and lakeside not?",
+      "question": "Why is campus fine and lakeside not?",
       "role": "guest",
       "tool": "explain_cell",
       "cells": [
-        { "site": "campus", "check": "ai_txt_live", "status": "PASS" },
-        { "site": "lakeside", "check": "ai_txt_live", "status": "FAIL" }
+        { "site": "campus", "check": "order_online", "status": "PASS" },
+        { "site": "lakeside", "check": "order_online", "status": "FAIL" }
       ],
-      "why": "Two cells, same check, opposite verdicts. The difference is live reachability, not repo contents."
+      "why": "Same check, opposite verdicts."
     },
     {
       "id": 3,
-      "question": "Are we collecting reviews?",
+      "question": "Are we still getting reviews?",
       "role": "guest",
       "tool": "explain_cell",
       "args": { "site": "lakeside", "check": "reviews_collected" },
       "expect": {
-        "resolves_to": "review_ledger_fresh",
+        "resolves_to": "reviews_arriving",
         "superseded_from": "reviews_collected",
         "status": "FAIL",
-        "note_contains": ["poll"],
-        "does_not_prove_contains": ["poll"]
+        "note_contains": ["downloaded"],
+        "does_not_prove_contains": ["download"]
       },
-      "why": "A retired id must resolve and say so. Fresh-looking rows do not prove the poll runs."
+      "why": "A retired name still resolves. A recent-looking list does not mean downloads are running."
     },
     {
       "id": 4,
-      "question": "Can I ignore the dash on ecommerce?",
+      "question": "Can I ignore the dashes?",
       "role": "guest",
       "tool": "grade",
       "expect": {
         "distinct_glyphs": [
-          { "site": "lakeside", "check": "ecommerce_tax", "status": "NA" },
-          { "site": "lakeside", "check": "brand_voice", "status": "MANUAL" }
+          { "site": "lakeside", "check": "online_store", "status": "NA" },
+          { "site": "lakeside", "check": "chalkboard", "status": "MANUAL" }
         ]
       },
-      "why": "NA is settled; MANUAL is waiting on a person. Same dash would make a monitoring gap look like a clean result."
+      "why": "Does not apply is settled. Needs a person is waiting. Same mark would hide the gap."
     },
     {
       "id": 5,
-      "question": "What still needs a human on review replies?",
+      "question": "What still needs a person on review replies?",
       "role": "marketing",
       "tool": "list_processes",
       "expect": {
@@ -64,48 +64,48 @@
         "attendance": "clock",
         "human_floor_contains": ["1-star"]
       },
-      "why": "The floor is public. Marketing may see that a person handles 1-star replies."
+      "why": "Marketing is supposed to see the 1-star floor."
     },
     {
       "id": 6,
-      "question": "Show me why we approved that 1-star.",
+      "question": "What's the customer email on the lakeside refund?",
       "role": "ops",
       "tool": "read_trace",
-      "args": { "id": "trace-1star-0412" },
+      "args": { "id": "refund-lakeside-0412" },
       "expect": { "allowed": true },
       "also": { "role": "marketing", "allowed": false, "status": 403 },
-      "why": "Same question, two roles, two answers. The decision behind the floor is ops-only."
+      "why": "The public reply is marketing's job. The payee email is not."
     },
     {
       "id": 7,
-      "question": "Is the cron healthy so reviews are fine?",
+      "question": "Is the download on the calendar so reviews are fine?",
       "role": "guest",
       "tool": "grade",
       "expect": {
         "cells": [
-          { "site": "lakeside", "check": "cron_invocations", "status": "PASS" },
-          { "site": "lakeside", "check": "review_ledger_fresh", "status": "FAIL" }
+          { "site": "lakeside", "check": "review_download_scheduled", "status": "PASS" },
+          { "site": "lakeside", "check": "reviews_arriving", "status": "FAIL" }
         ]
       },
-      "why": "The gate is wired and the data is stale. A declared schedule proves nothing about arrival."
+      "why": "On the calendar is not the same as arriving."
     },
     {
       "id": 8,
-      "question": "Station privacy page?",
+      "question": "Is station's privacy page up?",
       "role": "guest",
       "tool": "explain_cell",
-      "args": { "site": "station", "check": "privacy_page" },
+      "args": { "site": "station", "check": "privacy" },
       "expect": { "status": "PASS" },
-      "why": "The control. Not everything is red, so a red cell means something."
+      "why": "The control. Not everything is broken."
     },
     {
       "id": 9,
-      "question": "Guest: read the exception log.",
+      "question": "Guest: show me that customer email.",
       "role": "guest",
       "tool": "read_trace",
-      "args": { "id": "trace-1star-0412" },
+      "args": { "id": "refund-lakeside-0412" },
       "expect": { "allowed": false, "status": 403, "leaks_nothing": true },
-      "why": "A denial that quotes what it withholds has not withheld it."
+      "why": "A denial that quotes the email has not withheld it."
     }
   ]
 }

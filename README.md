@@ -10,54 +10,39 @@ every cell looks fine.
 
 ## What it does
 
-Three invented sites are graded by a deterministic TypeScript grader with no model in
-it. A chat turn may not assert any cell status without calling `grade` or
-`explain_cell` in that turn; when it cannot ground an answer, it refuses rather than
-guessing. The page shows the tool calls above the answer, with the raw JSON the model
-saw.
+Three coffee shops. A grid of claims a manager would recognize. Chat has to look
+at the grid; if it cannot, it says so.
 
     npm install
-    npm test          # 91 tests: grader selftest, nine golden cases, recorded LLM path
-    npm run matrix    # the matrix, no model, no network
-    npm run dev       # the Worker, chat included (needs a key, see below)
+    npm test
+    npm run matrix
+    npm run dev
 
-Statuses are a closed set of six with distinct glyphs:
+What you see on the page:
 
-| | | |
-|---|---|---|
-| ✅ `PASS` | claim holds under this rigor | |
-| ❌ `FAIL` | claim does not hold | |
-| ⚠️ `PARTIAL` | outcome works, not the standard way | must not read as PASS |
-| — `NA` | evaluated; does not apply | **must not read as MANUAL** |
-| ❓ `MANUAL` | no machine can decide this here | **must not read as NA** |
-| 🚨 `DEGRADED` | decidable, but the evidence was unreachable | note leads with `TRANSIENT` / `NO ACCESS` / `BROKEN` |
+| | |
+|---|---|
+| OK | this claim holds |
+| Broken | it does not |
+| Partial | it works, not the usual way |
+| Does not apply | we looked; this shop does not do that |
+| Needs a person | a script cannot decide |
+| Could not check | we should have looked; we could not reach it |
 
-`NA` and `MANUAL` cannot share a glyph. One means settled, the other means waiting on
-a person, and rendering them alike is how a monitoring gap comes to look like a clean
-result. Every check also declares `does_not_prove`, and cannot ship without it.
+"Does not apply" and "Needs a person" are not the same. One dash for both is how a
+gap looks like a clean bill of health.
 
-## The nine questions
+## The questions
 
-Asserted in CI against the grader, with no model involved — see
-[evals/golden.json](evals/golden.json) and [test/golden.test.ts](test/golden.test.ts).
-A model can be prompted into the right answer on a wrong matrix; these fail when the
-matrix itself stops telling the truth.
-
-1. **Is lakeside ai.txt OK?** → FAIL. The helper is imported and the live URL 404s.
-   Import is intent; the GET is the outcome.
-2. **Why is campus green and lakeside not?** → Same check, opposite verdicts.
-3. **Are we collecting reviews?** → `reviews_collected` is retired; it resolves to
-   `review_ledger_fresh`, which FAILs because the rows look fresh and the poll is 76h
-   stale.
-4. **Can I ignore the dash on ecommerce?** → No: one dash is `NA`, the other is
-   `MANUAL`.
-5. **What still needs a human on review replies?** → The 1-star floor, visible to
-   every role.
-6. **Show me why we approved that 1-star.** → Ops gets the trace. Marketing gets 403.
-7. **Is the cron healthy so reviews are fine?** → `cron_invocations` PASSes while
-   `review_ledger_fresh` FAILs. A declared schedule proves nothing about arrival.
-8. **Station privacy page?** → PASS. The control: not everything is red.
-9. **Guest: read the exception log.** → 403, and the denial quotes nothing it withholds.
+1. **Is lakeside's order-online page up?** Broken. The button is in the site; the page is gone.
+2. **Why is campus fine and lakeside not?** Same check, opposite answers.
+3. **Are we still getting reviews?** The list looks recent. Nothing has been downloaded in 76 hours.
+4. **Can I ignore the dashes?** No. One is "we don't sell bags online." The other is "someone has to read the seasonal board."
+5. **What still needs a person on review replies?** 1-star replies. Marketing is supposed to see this.
+6. **What's the customer email on the lakeside refund?** Ops gets it. Marketing gets 403. The public reply is not gated.
+7. **Is the download on the calendar so reviews are fine?** The download is scheduled. Reviews are not arriving.
+8. **Is station's privacy page up?** OK. Not everything is broken.
+9. **Guest: show me that customer email.** 403, and the denial does not quote the email.
 
 Live-fixtures-off is deliberately **not** a tenth chat question. It runs in the grader
 selftest on every `live` check, three ways (FAIL / PASS / DEGRADED), because CI must

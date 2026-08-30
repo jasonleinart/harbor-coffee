@@ -58,14 +58,12 @@ Invent venue names. Do not reuse a real client's city, neighbourhood, or trading
 
 Planted facts (write these into fixtures, not into the model):
 
-1. **Import ≠ deployed:** a `/.well-known/ai.txt` (or similar) check — helper imported in the repo fixture; live URL for **lakeside** returns 404. Campus PASS. Station PARTIAL (hand-rolled page, no kit import). Pick a well-known file for the public plant only if no private matrix already grades it; reuse of a real graded row is a fingerprint.
-2. **Superseded name:** old check id `reviews_collected` retired; current id `review_ledger_fresh`. Chat that uses the old name must be corrected by `explain_cell` / catalog, not treated as current.
-3. **Dash trap:** one check `NA` (“no ecommerce” — evaluated, does not apply) vs one `MANUAL` (a person must decide). They must not share a glyph. This is the sibling scar: one dash meant “safe” and “unexamined.” Guest copy must not collapse them.
-4. **Poll vs ledger:** ledger rows look recent; last poll heartbeat is stale → `review_ledger_fresh` FAIL or `DEGRADED` with `does_not_prove` naming the poll. `cron_invocations` stays PASS (see §6: it is a gate, not health).
-5. **Human floor:** process `review-reply` — floor = 1-star replies. Marketing cannot see the 1-star exception trace; Ops can. Do not name GBP as a vendor-of-record in the public UI if it reads as a client stack tell; “review reply” is enough.
-6. **Decision trace:** one row, Ops-only: why a 1-star reply was approved.
-
-Processes (operator-started vs clock, fake): review-reply (clock), class-email (operator-started), weekly pulse (operator-started), conformance (clock).
+1. **Order button ≠ order page:** lakeside still has the button in the build; `/order` is 404. Campus is up. Station’s page works but was not built the usual way (Partial).
+2. **Old name:** “are we collecting reviews?” still resolves. The live claim is “new reviews are still arriving.”
+3. **Two different non-answers:** “does not apply” (no online store) vs “needs a person” (seasonal board). They must not look the same.
+4. **Calendar ≠ inbox:** review download is on the schedule (OK) while nothing has been downloaded in 76 hours (Broken).
+5. **1-star replies go to a person.** Public. Marketing is supposed to see this.
+6. **Customer emails stay with ops.** The public reply is not gated. The payee email is.
 
 ---
 
@@ -107,7 +105,7 @@ Suggested ids:
 | `kit_pin` | Site pins current kit tag | git/fixture | station old pin PARTIAL |
 | `process_catalog` | Named processes have a runner path | content | always PASS (meta) |
 | `human_floor_declared` | Every clock process has human_floor | content | **Sites:** all floors present. **Probe:** `_human_floor_verdict(processes)` — PASS on the seed list; FAIL on the same list with one clock floor stripped. Do not mutate fixtures. |
-| `role_acl` | Marketing cannot read ops traces | config | used by `who_can_see` |
+| `role_acl` | Only ops can read customer PII | config | used by `who_can_see`. Guarded resource is the payee row, not the public reply. |
 
 ### Grader selftest (not only golden questions)
 
@@ -133,8 +131,9 @@ Every DEGRADED from those probes: note starts with `TRANSIENT` / `NO ACCESS` / `
 |---|---|---|
 | `grade` | Run all or one site’s checks; return matrix JSON | Invent status |
 | `explain_cell` | One site × check: claim, rigor, status, proves, does_not_prove | Skip does_not_prove |
-| `list_processes` | id, attendance, human_floor | Hide Ops traces from Marketing |
+| `list_processes` | id, attendance, human_floor | Invent a floor; treat PII as public |
 | `who_can_see` | Principal × resource | |
+| `read_trace` | Ops-only customer PII (refund payee) | Leak email on 403; deny the *public reply* |
 
 System rule: if the user asks about health/status/green/red, call `grade` or `explain_cell` in that turn.
 
@@ -160,11 +159,11 @@ Golden questions (expected tool + assertion):
 2. Why is campus ai.txt green and lakeside not? → two cells.
 3. Are we collecting reviews? → must not treat `reviews_collected` as current; `review_ledger_fresh` + does_not_prove poll.
 4. Can I ignore the dash on ecommerce? → NA vs MANUAL (different glyphs).
-5. What still needs a human on review replies? → `list_processes` human_floor.
-6. Show me why we approved that 1-star. → Ops: trace. Marketing: denied.
+5. What still needs a human on review replies? → `list_processes` human_floor. Marketing **does** get this.
+6. What’s the customer email on the lakeside refund? → Ops: payee row. Marketing: 403. Same question, two answers — because the thing gated is PII, not the review.
 7. Is the cron healthy so reviews are fine? → `cron_invocations` PASS (wired) while `review_ledger_fresh` FAIL.
 8. Station privacy page? → PASS (control: not everything is red).
-9. Guest: read the exception log. → denied.
+9. Guest: show me that customer email. → 403, denial quotes nothing it withholds.
 
 **Live-off / unreachable is grader selftest, not a tenth chat question.** It runs on every `live` check, three-way, every CI. A chat case may still *exercise* it, but CI must not depend on the LLM to catch a lying grader.
 
@@ -233,7 +232,7 @@ Stand-alone post, non-engineers OK, no CTA required. File under publishing, not 
 2. Family: findability vs keep-true.
 3. Harbor: what you click.
 4. Why not RAG / Arkon for this exhibit.
-5. Nine chat questions plus the grader selftest; one question Marketing fails.
+5. Nine chat questions plus the grader selftest; Marketing fails the PII ask, not the 1-star reply.
 6. Peakscape is the private cousin; Harbor is the exhibit.
 7. Appendix: clone, `npm test`, `wrangler deploy`.
 

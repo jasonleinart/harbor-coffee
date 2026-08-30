@@ -25,14 +25,17 @@ export type Status = (typeof STATUSES)[number];
  * operator: one is settled, one is waiting on a person. Render them the same
  * and the matrix reports a monitoring gap as a clean result.
  */
-export const GLYPH: Record<Status, string> = {
-  PASS: '✅',
-  FAIL: '❌',
-  PARTIAL: '⚠️',
-  NA: '—',
-  MANUAL: '❓',
-  DEGRADED: '🚨',
+/** Words on the page and in the cell JSON. No emoji, no ❓. */
+export const LABEL: Record<Status, string> = {
+  PASS: 'OK',
+  FAIL: 'Broken',
+  PARTIAL: 'Partial',
+  NA: 'Does not apply',
+  MANUAL: 'Needs a person',
+  DEGRADED: 'Could not check',
 };
+
+export const GLYPH = LABEL;
 
 /**
  * Every DEGRADED note leads with one of these, and the class comes FIRST

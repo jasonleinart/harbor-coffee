@@ -64,9 +64,9 @@ export function whoCanSee(resource: string, principals: Principal[] = PRINCIPALS
 /**
  * list_processes: id, attendance, human_floor — for every role.
  *
- * The process list itself is not secret; the plan is explicit that Guest sees
- * runbooks. What Marketing must not get is the TRACE, so the floor is described
- * here while the decision behind it stays behind readTrace().
+ * The process list itself is not secret. Guest sees runbooks. Marketing sees
+ * the 1-star floor — that is their work. What they must not get is the payee
+ * email behind readTrace().
  */
 export function listProcesses(
   role: string,
@@ -80,27 +80,26 @@ export function listProcesses(
 /**
  * List the traces a role may read. Authorization first, as always.
  *
- * Exists because read_trace needed an id nobody could discover: the model knew
- * a 1-star approval had been made and had no way to name it, so it declined
- * instead of calling the tool. A gate the caller cannot find its way to is not
- * secure, it is broken — and the denial is itself the interesting answer here.
+ * Exists because read_trace needed an id nobody could discover. A gate the
+ * caller cannot find is not secure, it is broken. Listing returns ids and a
+ * PII-free summary; the email stays on the full row.
  */
 export function listTraces(
   role: string,
   traces: Trace[] = TRACES,
   principals: Principal[] = PRINCIPALS,
 ): Guarded<Pick<Trace, 'id' | 'process' | 'summary'>[]> {
-  if (!canRead(role, 'ops_trace', principals)) return deny(role, 'ops_trace');
+  if (!canRead(role, 'customer_pii', principals)) return deny(role, 'customer_pii');
   return {
     allowed: true,
     status: 200,
     role,
-    resource: 'ops_trace',
+    resource: 'customer_pii',
     data: traces.map(({ id, process, summary }) => ({ id, process, summary })),
   };
 }
 
-/** The Ops-only row. Marketing and Guest get 403. PLAN.md §4.6 */
+/** The Ops-only payee row. Marketing and Guest get 403. PLAN.md §4.6 */
 export function readTrace(
   role: string,
   traceId: string,
@@ -108,13 +107,12 @@ export function readTrace(
   principals: Principal[] = PRINCIPALS,
 ): Guarded<Trace> | { allowed: false; status: 404; reason: string } {
   // Authorize BEFORE looking the id up. Checking existence first would let an
-  // unauthorized caller tell a real trace id from a fake one by the status
-  // code alone, which is a slower way of reading the same secret.
-  if (!canRead(role, 'ops_trace', principals)) return deny(role, 'ops_trace');
+  // unauthorized caller tell a real id from a fake one by the status code.
+  if (!canRead(role, 'customer_pii', principals)) return deny(role, 'customer_pii');
 
   const t = traces.find((x) => x.id === traceId);
   if (!t) return { allowed: false, status: 404, reason: `no trace ${traceId}` };
-  return { allowed: true, status: 200, role, resource: 'ops_trace', data: t };
+  return { allowed: true, status: 200, role, resource: 'customer_pii', data: t };
 }
 
 export { PRINCIPALS, PROCESSES, TRACES };

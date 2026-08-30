@@ -47,7 +47,7 @@ describe('1. lakeside ai.txt is FAIL, and the 404 is the reason', () => {
     expect(e.status).toBe('FAIL');
     for (const s of c.expect!.note_contains!) expect(e.note).toContain(s);
     expect(e.does_not_prove.length).toBeGreaterThan(0);
-    expect(e.note).not.toContain('empty/stub');
+    expect(e.note).not.toContain('empty');
   });
 });
 
@@ -67,8 +67,8 @@ describe('3. a retired id resolves and says so', () => {
     expect(e.check).toBe(c.expect!.resolves_to);
     expect(e.supersededFrom).toBe(c.expect!.superseded_from);
     expect(e.status).toBe('FAIL');
-    expect(e.note.toLowerCase()).toContain('poll');
-    expect(e.does_not_prove.toLowerCase()).toContain('poll');
+    expect(e.note.toLowerCase()).toContain('downloaded');
+    expect(e.does_not_prove.toLowerCase()).toContain('download');
   });
 });
 
@@ -98,7 +98,7 @@ describe('5. the human floor is visible to marketing', () => {
   });
 });
 
-describe('6. the trace: ops yes, marketing no', () => {
+describe('6. the payee: ops yes, marketing no', () => {
   const c = byId(6);
   it('ops reads it', () => {
     const r = runTool('read_trace', c.args!, 'ops') as { allowed: boolean };
@@ -137,6 +137,7 @@ describe('9. guest is denied, and the denial leaks nothing', () => {
     const body = JSON.stringify(r);
     expect(body).not.toContain(TRACES[0].rationale);
     expect(body).not.toContain(TRACES[0].summary);
+    expect(body).not.toContain(TRACES[0].customer_email);
   });
 });
 
@@ -149,28 +150,26 @@ describe('an unknown check id hands back the catalog', () => {
     const e = explainCell('lakeside', 'ecommerce_dash');
     expect('error' in e).toBe(true);
     if (!('error' in e)) return;
-    expect(e.available).toContain('ecommerce_tax');
+    expect(e.available).toContain('online_store');
     // Every id, not a curated subset: a partial list is how the model learns a
     // check does not exist when it does.
     expect(e.available).toEqual(CHECKS.map((c) => c.id));
   });
 
   it('a resolvable near-miss still resolves rather than erroring', () => {
-    const e = explainCell('lakeside', 'ecommerce');
+    const e = explainCell('lakeside', 'store');
     expect('error' in e).toBe(false);
   });
 
   // The catalog alone was ignored: a live model received all twelve ids six
   // times and kept inventing names. A list is data; the model needs an
   // instruction, so the error names the nearest match and says to use it.
-  it('names the nearest match for the ids a real model actually invented', () => {
-    for (const guess of ['ecommerce-healthy', 'ecommercehealthy', 'ecommerce_dash']) {
-      const e = explainCell('lakeside', guess);
-      expect('error' in e, guess).toBe(true);
-      if (!('error' in e)) continue;
-      expect(e.did_you_mean, guess).toContain('ecommerce_tax');
-      expect(e.instruction, guess).toContain('ecommerce_tax');
-    }
+  it('names the nearest match instead of a dead-end error', () => {
+    const e = explainCell('lakeside', 'chalkboard-voice');
+    expect('error' in e).toBe(true);
+    if (!('error' in e)) return;
+    expect(e.did_you_mean).toContain('chalkboard');
+    expect(e.instruction).toContain('chalkboard');
   });
 
   it('falls back to the full catalog when nothing is near', () => {

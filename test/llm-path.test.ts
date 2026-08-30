@@ -43,7 +43,7 @@ describe('golden 1 through the real loop', () => {
     expect(r.toolCalls).toHaveLength(1);
 
     const res = r.toolCalls[0].result as Record<string, string>;
-    expect(res.check).toBe('ai_txt_live');
+    expect(res.check).toBe('order_online');
     expect(res.resolvedFrom).toBe('ai.txt');
     expect(res.status).toBe('FAIL');
     expect(res.does_not_prove.length).toBeGreaterThan(0);
@@ -71,7 +71,7 @@ describe('golden 3 through the real loop', () => {
     await runChat(recorded.cases[1].question, spy, 'ops');
     const joined = seen.join('');
     expect(joined).toContain('76h');
-    expect(joined).toContain('review_ledger_fresh');
+    expect(joined).toContain('reviews_arriving');
   });
 });
 

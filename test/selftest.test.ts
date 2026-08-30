@@ -1,15 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import {
   CHECKS,
-  aiTxtVerdict,
+  orderOnlineVerdict,
   privacyPageVerdict,
   ledgerFreshVerdict,
   cronWiredVerdict,
   humanFloorVerdict,
-  gtmProdHostVerdict,
-  formsTurnstileVerdict,
-  kitPinVerdict,
-  processCatalogVerdict,
+  cateringFormVerdict,
   roleAclVerdict,
 } from '../src/grader/catalog';
 import { grade, explainCell, resolveCheckId, SITES } from '../src/grader';
@@ -70,7 +67,7 @@ describe('status enum', () => {
 describe('DEGRADED notes are classified', () => {
   it('every DEGRADED a probe can emit leads with a declared class', () => {
     const degraded = [
-      aiTxtVerdict(true, null),
+      orderOnlineVerdict(true, null),
       privacyPageVerdict(null),
       ledgerFreshVerdict(null, null, 24),
     ];
@@ -87,35 +84,30 @@ describe('DEGRADED notes are classified', () => {
 
 // Three ways per live row, or a check hardcoded to FAIL still "passes".
 describe('live rows: three-way', () => {
-  it('ai_txt: 404 FAILs, 200+import PASSes, unreachable DEGRADEs', () => {
-    expect(aiTxtVerdict(true, 404).status).toBe('FAIL');
-    expect(aiTxtVerdict(true, 200, 'x'.repeat(60)).status).toBe('PASS');
-    expect(aiTxtVerdict(true, null).status).toBe('DEGRADED');
+  it('order page: 404 FAILs, 200+wired PASSes, unreachable DEGRADEs', () => {
+    expect(orderOnlineVerdict(true, 404).status).toBe('FAIL');
+    expect(orderOnlineVerdict(true, 200, 'x'.repeat(60)).status).toBe('PASS');
+    expect(orderOnlineVerdict(true, null).status).toBe('DEGRADED');
   });
 
-  // THE HEADLINE DEFECT, asserted on the NOTE and not only the status.
-  // A status-only assertion let a mutation survive that made import-only green:
-  // wired + 404 fell through to the empty-body branch and returned FAIL for the
-  // wrong reason. Right answer, wrong path, and the test could not tell. The
-  // note is the only place the reason travels, so the reason is what to assert.
-  it('ai_txt: a 404 FAILs *on the status code*, never on body length', () => {
-    const v = aiTxtVerdict(true, 404);
+  it('order page: a 404 FAILs on the missing page, never on body length', () => {
+    const v = orderOnlineVerdict(true, 404);
     expect(v.status).toBe('FAIL');
     expect(v.note).toContain('404');
-    expect(v.note).not.toContain('empty/stub');
+    expect(v.note).not.toContain('empty');
   });
 
-  it('ai_txt: the import is named in the failure, so "but we imported it" is answered', () => {
-    expect(aiTxtVerdict(true, 404).note).toContain('imported');
-    expect(aiTxtVerdict(false, 404).note).not.toContain('imported');
+  it('order page: the button-in-the-build is named in the failure', () => {
+    expect(orderOnlineVerdict(true, 404).note).toContain('button');
+    expect(orderOnlineVerdict(false, 404).note).not.toContain('button');
   });
 
-  it('ai_txt: live 200 without the kit import is PARTIAL, not PASS', () => {
-    expect(aiTxtVerdict(false, 200, 'x'.repeat(60)).status).toBe('PARTIAL');
+  it('order page: live 200 without the usual build is PARTIAL, not PASS', () => {
+    expect(orderOnlineVerdict(false, 200, 'x'.repeat(60)).status).toBe('PARTIAL');
   });
 
-  it('ai_txt: 200 with a stub body FAILs', () => {
-    expect(aiTxtVerdict(true, 200, 'ok').status).toBe('FAIL');
+  it('order page: 200 with an empty body FAILs', () => {
+    expect(orderOnlineVerdict(true, 200, 'ok').status).toBe('FAIL');
   });
 
   it('privacy_page: 404 FAILs, 200 PASSes, unreachable DEGRADEs', () => {
@@ -156,48 +148,21 @@ describe('non-live rows can still fail', () => {
     expect(cronWiredVerdict([]).status).toBe('FAIL');
   });
 
-  it('gtm_prod_host: prod-only PASSes, extra host FAILs and is named', () => {
-    expect(gtmProdHostVerdict(['prod.example'], 'prod.example').status).toBe('PASS');
-    const v = gtmProdHostVerdict(['prod.example', 'preview.example'], 'prod.example');
-    expect(v.status).toBe('FAIL');
-    expect(v.note).toContain('preview.example');
-    expect(gtmProdHostVerdict([], 'prod.example').status).toBe('FAIL');
-  });
-
-  it('forms_turnstile: all-protected PASSes, a bare form FAILs and is named', () => {
-    expect(formsTurnstileVerdict([{ path: '/a', turnstile: true }]).status).toBe('PASS');
-    const v = formsTurnstileVerdict([
-      { path: '/a', turnstile: true },
-      { path: '/catering', turnstile: false },
-    ]);
+  it('catering form: protected PASSes, open FAILs and is named', () => {
+    expect(cateringFormVerdict([{ path: '/catering', spam_check: true }]).status).toBe('PASS');
+    const v = cateringFormVerdict([{ path: '/catering', spam_check: false }]);
     expect(v.status).toBe('FAIL');
     expect(v.note).toContain('/catering');
   });
 
-  it('forms_turnstile: no forms is NA, not PASS — nothing was protected', () => {
-    expect(formsTurnstileVerdict([]).status).toBe('NA');
-  });
-
-  it('kit_pin: current PASSes, old is PARTIAL, missing FAILs', () => {
-    expect(kitPinVerdict('v2.4.0', 'v2.4.0').status).toBe('PASS');
-    expect(kitPinVerdict('v2.1.0', 'v2.4.0').status).toBe('PARTIAL');
-    expect(kitPinVerdict(undefined, 'v2.4.0').status).toBe('FAIL');
-  });
-
-  it('process_catalog: all-runners PASSes, an orphan FAILs and is named', () => {
-    expect(processCatalogVerdict(PROCESSES).status).toBe('PASS');
-    const orphaned = PROCESSES.map((p) =>
-      p.id === 'class-email' ? { ...p, runner: undefined } : p,
-    );
-    const v = processCatalogVerdict(orphaned);
-    expect(v.status).toBe('FAIL');
-    expect(v.note).toContain('class-email');
+  it('catering form: no forms is NA, not PASS', () => {
+    expect(cateringFormVerdict([])).toMatchObject({ status: 'NA' });
   });
 
   it('role_acl: restricted PASSes; a leak to marketing FAILs and is named', () => {
     expect(roleAclVerdict(PRINCIPALS).status).toBe('PASS');
     const leaked = PRINCIPALS.map((p) =>
-      p.role === 'marketing' ? { ...p, can_read: [...p.can_read, 'ops_trace'] } : p,
+      p.role === 'marketing' ? { ...p, can_read: [...p.can_read, 'customer_pii'] } : p,
     );
     const v = roleAclVerdict(leaked);
     expect(v.status).toBe('FAIL');
@@ -217,45 +182,45 @@ describe('non-live rows can still fail', () => {
 describe('planted defects (PLAN.md §4)', () => {
   const cells = grade();
 
-  it('1. lakeside ai_txt FAILs despite the import; campus PASSes; station PARTIAL', () => {
-    expect(cell(cells, 'lakeside', 'ai_txt_live').status).toBe('FAIL');
-    expect(cell(cells, 'campus', 'ai_txt_live').status).toBe('PASS');
-    expect(cell(cells, 'station', 'ai_txt_live').status).toBe('PARTIAL');
+  it('1. lakeside order page FAILs despite the button; campus PASSes; station PARTIAL', () => {
+    expect(cell(cells, 'lakeside', 'order_online').status).toBe('FAIL');
+    expect(cell(cells, 'campus', 'order_online').status).toBe('PASS');
+    expect(cell(cells, 'station', 'order_online').status).toBe('PARTIAL');
   });
 
   it('2. a superseded id resolves to the current one', () => {
     expect(resolveCheckId('reviews_collected')).toEqual({
-      id: 'review_ledger_fresh',
+      id: 'reviews_arriving',
       supersededFrom: 'reviews_collected',
     });
     const e = cellOf('lakeside', 'reviews_collected');
-    expect(e.check).toBe('review_ledger_fresh');
+    expect(e.check).toBe('reviews_arriving');
     expect(e.supersededFrom).toBe('reviews_collected');
   });
 
-  it('3. the dash trap: NA and MANUAL do not share a glyph', () => {
-    const na = cell(cells, 'lakeside', 'ecommerce_tax');
-    const man = cell(cells, 'lakeside', 'brand_voice');
+  it('3. the dash trap: NA and MANUAL do not share a label', () => {
+    const na = cell(cells, 'lakeside', 'online_store');
+    const man = cell(cells, 'lakeside', 'chalkboard');
     expect(na.status).toBe('NA');
     expect(man.status).toBe('MANUAL');
     expect(na.glyph).not.toBe(man.glyph);
   });
 
-  it('4. cron is green while the ledger it feeds FAILs', () => {
-    expect(cell(cells, 'lakeside', 'cron_invocations').status).toBe('PASS');
-    expect(cell(cells, 'lakeside', 'review_ledger_fresh').status).toBe('FAIL');
+  it('4. download is scheduled while reviews are not arriving', () => {
+    expect(cell(cells, 'lakeside', 'review_download_scheduled').status).toBe('PASS');
+    expect(cell(cells, 'lakeside', 'reviews_arriving').status).toBe('FAIL');
   });
 
-  it('privacy_page is the control: PASS on all three', () => {
+  it('privacy is the control: PASS on all three', () => {
     for (const s of ['lakeside', 'campus', 'station']) {
-      expect(cell(cells, s, 'privacy_page').status).toBe('PASS');
+      expect(cell(cells, s, 'privacy').status).toBe('PASS');
     }
   });
 });
 
 describe('explain_cell', () => {
   it('always carries does_not_prove', () => {
-    const e = cellOf('lakeside', 'ai_txt_live');
+    const e = cellOf('lakeside', 'order_online');
     expect(e.does_not_prove.length).toBeGreaterThan(0);
     expect(e.status).toBe('FAIL');
   });
@@ -277,8 +242,8 @@ describe('rendered matrix matches the graded cells', () => {
 
   it('renders every check row and site column', () => {
     const html = renderMatrix();
-    for (const c of CHECKS) expect(html).toContain(c.id);
-    for (const s of SITES) expect(html).toContain(s.key);
+    for (const c of CHECKS) expect(html).toContain(c.claim);
+    for (const s of SITES) expect(html).toContain(s.name);
   });
 
   it('live-off renders DEGRADED, never PASS, on live rows', () => {
@@ -293,19 +258,20 @@ describe('rendered matrix matches the graded cells', () => {
 // the failure. The VERDICT stays strict, and every resolution is reported.
 describe('check id resolution', () => {
   it('resolves a plausible short name to the real id', () => {
-    expect(resolveCheckId('ai.txt').id).toBe('ai_txt_live');
-    expect(resolveCheckId('ai_txt').id).toBe('ai_txt_live');
-    expect(resolveCheckId('AI-TXT').id).toBe('ai_txt_live');
+    expect(resolveCheckId('ai.txt').id).toBe('order_online');
+    expect(resolveCheckId('ai_txt').id).toBe('order_online');
+    expect(resolveCheckId('AI-TXT').id).toBe('order_online');
+    expect(resolveCheckId('order').id).toBe('order_online');
   });
 
   it('reports what it resolved from, so nothing is silently renamed', () => {
     expect(resolveCheckId('ai.txt').resolvedFrom).toBe('ai.txt');
-    expect(resolveCheckId('ai_txt_live').resolvedFrom).toBeUndefined();
+    expect(resolveCheckId('order_online').resolvedFrom).toBeUndefined();
   });
 
   it('keeps the superseded path distinct from a fuzzy match', () => {
     const r = resolveCheckId('reviews_collected');
-    expect(r.id).toBe('review_ledger_fresh');
+    expect(r.id).toBe('reviews_arriving');
     expect(r.supersededFrom).toBe('reviews_collected');
     expect(r.resolvedFrom).toBeUndefined();
   });
@@ -324,7 +290,7 @@ describe('check id resolution', () => {
 
   it('explain_cell surfaces the resolution to the caller', () => {
     const e = cellOf('lakeside', 'ai.txt');
-    expect(e.check).toBe('ai_txt_live');
+    expect(e.check).toBe('order_online');
     expect(e.resolvedFrom).toBe('ai.txt');
     expect(e.status).toBe('FAIL');
   });

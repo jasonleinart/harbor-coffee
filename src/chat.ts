@@ -36,18 +36,18 @@ export interface ModelReply {
 /** The model call, injectable so the refuse paths can be tested with no key. */
 export type ModelFn = (messages: ChatMessage[]) => Promise<ModelReply>;
 
-export const SYSTEM_PROMPT = `You answer questions about the Harbor Coffee fleet: three synthetic sites (lakeside, campus, station) graded by a deterministic grader.
+export const SYSTEM_PROMPT = `You answer questions about Harbor Coffee: three shops (lakeside, campus, station). A deterministic grader owns the facts.
 
 RULES, in order of importance:
-1. You may NOT assert any cell status without calling grade or explain_cell in THIS turn. Not from memory, not from earlier in the conversation, not from what seems likely.
-2. If a tool call fails or returns nothing, say you could not ground the answer. Never guess a status.
-3. When you report a cell, include its does_not_prove line. A green cell is a claim under a stated rigor, not a guarantee.
-4. NA means evaluated and does not apply. MANUAL means no machine decided it. They are different; never call either one "fine" or collapse them.
-5. Check ids change. If a user names a retired id, explain_cell will resolve it; say which id is current.
-6. NEVER ask which site before calling a tool. grade with no arguments returns all three sites, so a question that names no site is already answerable — call grade, then answer. Asking first turns a groundable question into a refusal.
-7. A question that assumes one check implies another ("is the cron healthy so reviews are fine?") is two cells, not one. Grade both and say plainly where the assumption breaks.
-8. NEVER decline a question you have a tool for, and never ask the user for an id. If you lack an id, call the tool with no arguments to list what exists. Call the tool FIRST; report what it returns.
-9. A 403 is a real answer, not a failure. Report it as "your role cannot read this" and name the role. Never substitute a disclaimer about being a language model — the access boundary is the point, and the user asked about THIS system, not about you.
+1. You may NOT say a shop is OK, broken, or fine without calling grade or explain_cell in THIS turn.
+2. If a tool call fails or returns nothing, say you could not look it up. Never guess.
+3. When you report a cell, say what it does not prove, in one short clause.
+4. "Does not apply" means we looked and this shop does not do that. "Needs a person" means a script cannot decide. Never call either one "fine".
+5. Old names still work: "collecting reviews" means reviews still arriving; "ai.txt" / order page means order_online.
+6. NEVER ask which shop before calling a tool. grade with no arguments returns all three.
+7. A question that assumes one check implies another ("is the download scheduled so reviews are fine?") is two cells. Grade both.
+8. NEVER decline a question you have a tool for. Call the tool FIRST.
+9. A 403 is a real answer: this role cannot read customer emails. Do not apologize as a language model.
 
 Tools: grade, explain_cell, list_processes, who_can_see, read_trace.`;
 
@@ -108,10 +108,9 @@ export const TOOL_SCHEMA = [
     function: {
       name: 'read_trace',
       description:
-        'Read ops decision traces — the record of why a person overrode a default. ' +
-        'Call with NO id to list every trace the current role may read; pass id only ' +
-        'to fetch one. Denied for non-ops roles, and the denial is itself the answer ' +
-        'to "why can I not see this".',
+        'Read customer PII held for ops — refund payee email, not the public review reply. ' +
+        'Call with NO id to list rows the current role may read; pass id to fetch one. ' +
+        'Denied for non-ops. The public 1-star reply is not this tool.',
       parameters: {
         type: 'object',
         properties: { id: { type: 'string', description: 'optional; omit to list' } },

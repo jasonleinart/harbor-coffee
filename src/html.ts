@@ -1,16 +1,12 @@
 import { CHECKS } from './grader/catalog';
 import { SITES, grade, seed } from './grader';
-import { GLYPH } from './grader/status';
+import { LABEL } from './grader/status';
 
 const esc = (s: string) =>
   s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
 /**
- * The matrix as a page. No chat, no model — Phase 1 has to stand on its own.
- *
- * Every cell carries its note, its proves and its does_not_prove in a title
- * attribute, so the claim and its limit travel together. Splitting them is how
- * a green cell starts meaning more than it earned.
+ * The matrix as a page. Claims in English. No hover essays.
  */
 export function renderMatrix(liveOff = false): string {
   const cells = grade(seed({ liveOff }));
@@ -20,15 +16,17 @@ export function renderMatrix(liveOff = false): string {
   const rows = CHECKS.map((check) => {
     const tds = SITES.map((s) => {
       const c = find(s.key, check.id);
-      const tip = `${check.claim}\n\nrigor: ${check.rigor}\nnote: ${c.note}\n\nproves: ${check.proves}\ndoes not prove: ${check.does_not_prove}`;
-      return `<td class="s-${c.status}" title="${esc(tip)}"><span class="g">${c.glyph}</span> ${c.status}</td>`;
+      return `<td class="s-${c.status}">${esc(LABEL[c.status])}</td>`;
     }).join('');
-    return `<tr><th scope="row"><code>${esc(check.id)}</code><small>${esc(check.rigor)}</small></th>${tds}</tr>`;
+    return `<tr><th scope="row">${esc(check.claim)}</th>${tds}</tr>`;
   }).join('\n');
 
   const notes = cells
     .filter((c) => c.status !== 'PASS' && c.note)
-    .map((c) => `<li><code>${esc(c.site)}/${esc(c.check)}</code> — ${esc(c.note)}</li>`)
+    .map((c) => {
+      const claim = CHECKS.find((x) => x.id === c.check)?.claim ?? c.check;
+      return `<li><strong>${esc(c.site)}</strong> — ${esc(claim)}: ${esc(c.note)}</li>`;
+    })
     .join('\n');
 
   return `<!doctype html>
@@ -51,7 +49,7 @@ export function renderMatrix(liveOff = false): string {
   thead th { background:var(--head); }
   th[scope=row] { font-weight:400; }
   th[scope=row] small { display:block; color:var(--mut); font-size:.75rem; }
-  td { cursor:help; }
+  td { cursor:default; }
   .g { font-family:system-ui,'Apple Color Emoji','Segoe UI Emoji',sans-serif; }
   .s-FAIL { color:#c0392b; } .s-PARTIAL { color:#b8860b; }
   .s-DEGRADED { color:#8e44ad; } .s-MANUAL { color:var(--mut); } .s-NA { color:var(--mut); }
@@ -76,20 +74,22 @@ export function renderMatrix(liveOff = false): string {
            color:var(--fg); border:1px solid var(--line); }
   #egs code { cursor:pointer; text-decoration:underline dotted; margin-right:.75rem; }
 </style></head><body><main>
-<h1>Harbor Coffee — keep-true matrix${liveOff ? ' (live fixtures OFF)' : ''}</h1>
-<p class="sub">Synthetic fleet. Hover any cell for what it proves and what it does not.</p>
+<h1>Harbor Coffee — three shops${liveOff ? ' (could not reach the live pages)' : ''}</h1>
+<p class="sub">A cell is one claim about one shop. OK does not mean everything is fine.</p>
 <div class="wrap"><table>
-<thead><tr><th scope="col">check</th>${SITES.map((s) => `<th scope="col">${esc(s.key)}</th>`).join('')}</tr></thead>
+<thead><tr><th scope="col"></th>${SITES.map((s) => `<th scope="col">${esc(s.name)}</th>`).join('')}</tr></thead>
 <tbody>
 ${rows}
 </tbody></table></div>
 <section id="chat">
   <h2>Ask the grader</h2>
-  <p class="sub">Role: <select id="role">
+  <p class="sub">Who is asking:
+    <select id="role">
     <option value="guest">guest</option><option value="marketing">marketing</option><option value="ops">ops</option>
-  </select> &nbsp; The model may not assert a status without calling a tool. When it cannot, it refuses.</p>
+  </select>
+  The assistant has to look at the grid. If it cannot, it says so.</p>
   <div id="log"></div>
-  <form id="f"><input id="q" placeholder="Is lakeside ai.txt OK?" autocomplete="off">
+  <form id="f"><input id="q" placeholder="Is lakeside's order-online page up?" autocomplete="off">
   <button>Ask</button></form>
   <p class="sub" id="egs"></p>
 </section>
@@ -99,16 +99,15 @@ ${rows}
 ${notes}
 </ul>
 <div class="legend">
-  ${Object.entries(GLYPH).map(([k, v]) => `${v} ${k}`).join(' &nbsp; ')}
-  <p><strong>—&nbsp;NA</strong> means evaluated and not applicable.
-     <strong>❓&nbsp;MANUAL</strong> means no machine decided it. They are different,
-     which is why they do not share a glyph.</p>
+  ${Object.entries(LABEL).map(([k, v]) => `<span>${esc(v)}</span>`).join(' · ')}
+  <p><strong>Does not apply</strong> means we looked, and this shop does not do that.
+     <strong>Needs a person</strong> means a script cannot decide. Those are not the same.</p>
 </div>
 </main>
 <script>
-const EG = ['Is lakeside ai.txt OK?','Why is campus green and lakeside not?',
-  'Are we collecting reviews?','Can I ignore the dash on ecommerce?',
-  'Is the cron healthy so reviews are fine?','Show me why we approved that 1-star.'];
+const EG = ['Is lakeside order-online up?','Why is campus fine and lakeside not?',
+  'Are we still getting reviews?','Can I ignore the dashes?',
+  'What still needs a person on reviews?','What is the customer email on the lakeside refund?'];
 document.getElementById('egs').innerHTML = 'Try: ' +
   EG.map(e => '<code>' + e + '</code>').join('');
 document.getElementById('egs').onclick = e => {

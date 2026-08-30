@@ -12,7 +12,18 @@ export interface Cell {
 
 /** Retired ids, and what replaced them. PLAN.md §4.2 */
 export const SUPERSEDED: Record<string, string> = {
-  reviews_collected: 'review_ledger_fresh',
+  reviews_collected: 'reviews_arriving',
+  collecting_reviews: 'reviews_arriving',
+};
+
+/** Names a live model actually used. Not retirements — lookups. */
+const ALIASES: Record<string, string> = {
+  'ai.txt': 'order_online',
+  ai_txt_live: 'order_online',
+  ai_txt: 'order_online',
+  'ai-txt': 'order_online',
+  order: 'order_online',
+  'order-online': 'order_online',
 };
 
 /**
@@ -41,6 +52,9 @@ export function resolveCheckId(id: string): {
 
   const current = SUPERSEDED[id];
   if (current) return { id: current, supersededFrom: id };
+
+  const alias = ALIASES[id] ?? ALIASES[id.toLowerCase()];
+  if (alias) return { id: alias, resolvedFrom: id };
 
   const n = norm(id);
   if (!n) return { id };

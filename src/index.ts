@@ -52,7 +52,7 @@ export default {
     }
 
     if (url.pathname === '/api/who-can-see') {
-      return Response.json(whoCanSee(url.searchParams.get('resource') ?? 'ops_trace'));
+      return Response.json(whoCanSee(url.searchParams.get('resource') ?? 'customer_pii'));
     }
 
     if (url.pathname === '/api/trace') {

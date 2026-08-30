@@ -50,7 +50,7 @@ describe('refuse rather than answer ungrounded', () => {
   it('allows the answer once a tool actually ran', async () => {
     const r = await runChat(
       'is lakeside ai.txt ok?',
-      grounded([call('explain_cell', { site: 'lakeside', check: 'ai_txt_live' })]),
+      grounded([call('explain_cell', { site: 'lakeside', check: 'order_online' })]),
     );
     expect(r.ok).toBe(true);
     expect(r.toolCalls).toHaveLength(1);
@@ -81,7 +81,7 @@ describe('injected faults', () => {
   it('a grader throw refuses instead of answering', async () => {
     const model: ModelFn = async () => ({
       content: null,
-      tool_calls: [call('explain_cell', { site: 'lakeside', check: 'ai_txt_live' })],
+      tool_calls: [call('explain_cell', { site: 'lakeside', check: 'order_online' })],
     });
     const boom = vi.spyOn(await import('../src/grader'), 'explainCell').mockImplementation(() => {
       throw new Error('grader exploded');
@@ -152,7 +152,7 @@ describe('the loop injects real tool results', () => {
       return async (messages) => {
         for (const m of messages) if (m.role === 'tool') seen.push(m.content);
         return n++ === 0
-          ? { content: null, tool_calls: [call('explain_cell', { site: 'lakeside', check: 'ai_txt_live' })] }
+          ? { content: null, tool_calls: [call('explain_cell', { site: 'lakeside', check: 'order_online' })] }
           : { content: 'grounded' };
       };
     })();
