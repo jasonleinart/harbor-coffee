@@ -1,0 +1,25 @@
+name: CI
+
+# The grader selftest is the gate. It needs no API key and no network, so a
+# flaky provider can never turn a lying grader green.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Grader selftest, golden cases, LLM path (recorded)
+        run: npm test
+      - name: Matrix renders without a model
+        run: npm run matrix
