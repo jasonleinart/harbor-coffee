@@ -32,6 +32,7 @@ export interface Denial {
 
 export interface Grant<T> {
   allowed: true;
+  status: 200;
   role: string;
   resource: string;
   data: T;
@@ -73,7 +74,7 @@ export function listProcesses(
   principals: Principal[] = PRINCIPALS,
 ): Guarded<Process[]> {
   if (!canRead(role, 'processes', principals)) return deny(role, 'processes');
-  return { allowed: true, role, resource: 'processes', data: processes };
+  return { allowed: true, status: 200, role, resource: 'processes', data: processes };
 }
 
 /** The Ops-only row. Marketing and Guest get 403. PLAN.md §4.6 */
@@ -90,7 +91,7 @@ export function readTrace(
 
   const t = traces.find((x) => x.id === traceId);
   if (!t) return { allowed: false, status: 404, reason: `no trace ${traceId}` };
-  return { allowed: true, role, resource: 'ops_trace', data: t };
+  return { allowed: true, status: 200, role, resource: 'ops_trace', data: t };
 }
 
 export { PRINCIPALS, PROCESSES, TRACES };

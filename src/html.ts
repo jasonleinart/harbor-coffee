@@ -59,6 +59,22 @@ export function renderMatrix(liveOff = false): string {
   .legend { margin-top:2rem; border-top:1px solid var(--line); padding-top:1rem;
             color:var(--mut); font-size:.85rem; }
   code { font:inherit; }
+  #chat { margin:2rem 0; border:1px solid var(--line); padding:1rem; }
+  #chat h2 { font-size:.95rem; margin:0 0 .25rem; }
+  #log { margin:1rem 0; }
+  .msg { margin:.6rem 0; padding:.5rem .7rem; border-left:2px solid var(--line); }
+  .msg.u { border-left-color:#3498db; }
+  .msg.a { border-left-color:#27ae60; }
+  .msg.r { border-left-color:#c0392b; }
+  .tool { margin:.35rem 0 .35rem 1rem; font-size:.82rem; color:var(--mut); }
+  .tool summary { cursor:pointer; }
+  .tool pre { overflow-x:auto; background:var(--head); padding:.5rem; margin:.35rem 0 0; }
+  form { display:flex; gap:.5rem; }
+  #q { flex:1; padding:.5rem; font:inherit; background:var(--bg); color:var(--fg);
+       border:1px solid var(--line); }
+  button { padding:.5rem 1rem; font:inherit; cursor:pointer; background:var(--head);
+           color:var(--fg); border:1px solid var(--line); }
+  #egs code { cursor:pointer; text-decoration:underline dotted; margin-right:.75rem; }
 </style></head><body><main>
 <h1>Harbor Coffee — keep-true matrix${liveOff ? ' (live fixtures OFF)' : ''}</h1>
 <p class="sub">Synthetic fleet. Hover any cell for what it proves and what it does not.</p>
@@ -67,6 +83,17 @@ export function renderMatrix(liveOff = false): string {
 <tbody>
 ${rows}
 </tbody></table></div>
+<section id="chat">
+  <h2>Ask the grader</h2>
+  <p class="sub">Role: <select id="role">
+    <option value="guest">guest</option><option value="marketing">marketing</option><option value="ops">ops</option>
+  </select> &nbsp; The model may not assert a status without calling a tool. When it cannot, it refuses.</p>
+  <div id="log"></div>
+  <form id="f"><input id="q" placeholder="Is lakeside ai.txt OK?" autocomplete="off">
+  <button>Ask</button></form>
+  <p class="sub" id="egs"></p>
+</section>
+
 <h2 style="font-size:.95rem;margin:1.75rem 0 .5rem">Notes</h2>
 <ul>
 ${notes}
@@ -77,5 +104,44 @@ ${notes}
      <strong>❓&nbsp;MANUAL</strong> means no machine decided it. They are different,
      which is why they do not share a glyph.</p>
 </div>
-</main></body></html>`;
+</main>
+<script>
+const EG = ['Is lakeside ai.txt OK?','Why is campus green and lakeside not?',
+  'Are we collecting reviews?','Can I ignore the dash on ecommerce?',
+  'Is the cron healthy so reviews are fine?','Show me why we approved that 1-star.'];
+document.getElementById('egs').innerHTML = 'Try: ' +
+  EG.map(e => '<code>' + e + '</code>').join('');
+document.getElementById('egs').onclick = e => {
+  if (e.target.tagName === 'CODE') { document.getElementById('q').value = e.target.textContent; }
+};
+const log = document.getElementById('log');
+function add(cls, text) {
+  const d = document.createElement('div');
+  d.className = 'msg ' + cls; d.textContent = text; log.appendChild(d); return d;
+}
+document.getElementById('f').onsubmit = async ev => {
+  ev.preventDefault();
+  const q = document.getElementById('q'); const text = q.value.trim();
+  if (!text) return;
+  add('u', text); q.value = ''; const pending = add('a', 'thinking...');
+  try {
+    const res = await fetch('/chat', { method:'POST', headers:{'content-type':'application/json'},
+      body: JSON.stringify({ message:text, role: document.getElementById('role').value }) });
+    const d = await res.json();
+    pending.remove();
+    // The tool calls render BEFORE the answer, because the whole claim of this
+    // page is that the answer came from them.
+    for (const t of (d.toolCalls || [])) {
+      const det = document.createElement('details'); det.className = 'tool';
+      det.innerHTML = '<summary>used <b>' + t.name + '</b>(' +
+        JSON.stringify(t.args) + ')</summary><pre>' +
+        JSON.stringify(t.result, null, 2).replace(/</g,'&lt;') + '</pre>';
+      log.appendChild(det);
+    }
+    add(d.refused ? 'r' : 'a', d.answer || d.error || '(no answer)');
+  } catch (err) { pending.remove(); add('r', 'Request failed: ' + err.message); }
+  log.scrollIntoView({block:'end'});
+};
+</script>
+</body></html>`;
 }
