@@ -246,6 +246,14 @@ describe('rendered matrix matches the graded cells', () => {
     for (const s of SITES) expect(html).toContain(s.name);
   });
 
+  it('tells a stranger what this is and what to do', () => {
+    const html = renderMatrix();
+    expect(html).toContain('not a real café');
+    expect(html).toContain('What to do');
+    expect(html).toContain('Order button');
+    expect(html.toLowerCase()).not.toContain('a cell is one claim');
+  });
+
   it('live-off renders DEGRADED, never PASS, on live rows', () => {
     const html = renderMatrix(true);
     expect(html).toContain('s-DEGRADED');
